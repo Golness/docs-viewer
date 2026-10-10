@@ -1,0 +1,1672 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="docs-viewer 插件技术方案 v1.0：AI 驱动的需求追溯系统实现方案">
+<title>Docs Viewer 需求追溯系统 — 技术方案 v1.0</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310b981'/%3E%3Cpath d='M18 14h21l9 9v27H18z' fill='white'/%3E%3Cpath d='M39 14v10h9M25 32h16M25 39h16M25 46h11' fill='none' stroke='%2310b981' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{--text:#1e293b;--muted:#475569;--subtle:#64748b;--surface:#fff;--page:#f8fafc;--soft:#f1f5f9;--border:#e2e8f0;--accent:#10b981;--accent-soft:#ecfdf5;--code:#172033;--code-text:#e2e8f0;--shadow:0 12px 35px rgba(15,23,42,.07);--red:#ef4444;--green:#22c55e;--yellow:#eab308;--blue:#3b82f6;--purple:#8b5cf6;--orange:#f59e0b}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--text:#f1f5f9;--muted:#cbd5e1;--subtle:#94a3b8;--surface:#0f172a;--page:#1e293b;--soft:#334155;--border:#334155;--accent:#34d399;--accent-soft:#064e3b;--code:#020617;--code-text:#e2e8f0;--shadow:none}}
+:root[data-theme="dark"]{--text:#f1f5f9;--muted:#cbd5e1;--subtle:#94a3b8;--surface:#0f172a;--page:#1e293b;--soft:#334155;--border:#334155;--accent:#34d399;--accent-soft:#064e3b;--code:#020617;--code-text:#e2e8f0;--shadow:none}
+*{box-sizing:border-box}html{scroll-behavior:smooth;font-size:16px}body{margin:0;background:var(--page);color:var(--text);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.72;-webkit-font-smoothing:antialiased}
+.progress{position:fixed;z-index:100;top:0;left:0;width:0;height:3px;background:linear-gradient(90deg,#10b981,#34d399)}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border)}
+.hero{width:100%;padding:50px clamp(24px,3vw,56px) 32px}
+.hero-row{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.eyebrow:before{content:"";width:22px;height:2px;background:var(--accent)}
+h1{margin:0 0 12px;font-size:34px;line-height:1.25;letter-spacing:-.025em}
+.hero p{margin:0;color:var(--muted);font-size:16px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.pill{border:1px solid var(--border);border-radius:999px;background:var(--page);color:var(--muted);padding:5px 10px;font-size:12px}
+.theme-button{border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--text);padding:8px 11px;cursor:pointer}
+.stats{width:100%;padding:0 clamp(24px,3vw,56px) 30px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{border:1px solid var(--border);border-radius:9px;background:var(--page);padding:15px 16px}
+.stat-value{margin-bottom:7px;color:var(--accent);font-size:24px;font-weight:700;line-height:1}
+.stat-label{color:var(--subtle);font-size:12px}
+.shell{width:100%;padding:28px clamp(24px,3vw,56px);display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px}
+.sidebar{position:sticky;top:18px;align-self:start;max-height:calc(100vh - 36px);overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:16px}
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.sidebar-title{font-weight:700;font-size:13px;color:var(--text)}
+.toc-count{color:var(--subtle);font-size:11px;background:var(--soft);border-radius:999px;padding:2px 8px}
+.toc a{display:block;padding:5px 8px;border-radius:5px;color:var(--muted);text-decoration:none;font-size:13px;line-height:1.45;transition:background .12s,color .12s}
+.toc a:hover{background:var(--soft);color:var(--text)}
+.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.toc a.lv2{padding-left:8px;font-weight:600}
+.toc a.lv3{padding-left:20px}
+.toc a.lv4{padding-left:34px;font-size:12px}
+.document{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:40px clamp(28px,3vw,48px);box-shadow:var(--shadow)}
+.document>:first-child{margin-top:0}
+h2{margin-top:48px;font-size:24px;font-weight:700;letter-spacing:-.015em;padding-bottom:10px;border-bottom:2px solid var(--border);scroll-margin-top:20px}
+h3{margin-top:32px;font-size:19px;font-weight:600;scroll-margin-top:20px}
+h4{margin-top:24px;font-size:16px;font-weight:600;scroll-margin-top:20px}
+p{margin:14px 0}ul,ol{padding-left:22px;margin:12px 0}li{margin:4px 0}
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+th,td{border:1px solid var(--border);padding:10px 12px;text-align:left}
+th{background:var(--soft);font-weight:600;font-size:13px}
+blockquote{margin:18px 0;padding:14px 18px;border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--muted)}
+pre{margin:18px 0;padding:16px;border-radius:8px;background:var(--code);overflow-x:auto;font-size:13px;line-height:1.55;position:relative}
+pre[data-language]{padding-top:42px}
+pre[data-language]:before{content:attr(data-language);position:absolute;top:10px;right:14px;color:#94a3b8;font:600 11px/1.2 "Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase}
+code{font-family:Consolas,"SFMono-Regular",Menlo,monospace;font-size:.9em}
+.footer{width:100%;padding:28px clamp(24px,3vw,56px);text-align:center;color:var(--subtle);font-size:12px}
+.floating{position:fixed;bottom:24px;right:24px;z-index:90}
+.float-btn{border:1px solid var(--border);border-radius:50%;width:44px;height:44px;background:var(--surface);color:var(--text);font-size:18px;cursor:pointer;box-shadow:var(--shadow)}
+.meta:empty,.stats:empty{display:none}
+.hljs{display:block;overflow-x:auto;color:#e2e8f0}.hljs-comment,.hljs-quote{color:#94a3b8;font-style:italic}.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-section,.hljs-link{color:#c084fc}.hljs-string,.hljs-title,.hljs-name,.hljs-type,.hljs-attribute,.hljs-symbol,.hljs-bullet,.hljs-addition{color:#86efac}.hljs-number,.hljs-meta,.hljs-built_in,.hljs-builtin-name,.hljs-params{color:#fbbf24}.hljs-variable,.hljs-template-variable,.hljs-selector-class,.hljs-selector-id{color:#7dd3fc}.hljs-regexp,.hljs-deletion{color:#fca5a5}.hljs-function .hljs-title,.hljs-title.function_{color:#93c5fd}.hljs-tag{color:#cbd5e1}.hljs-tag .hljs-name,.hljs-tag .hljs-attr{color:#7dd3fc}
+
+/* Architecture diagram */
+.arch-diagram{margin:24px 0;padding:20px;background:var(--page);border:1px solid var(--border);border-radius:8px;overflow-x:auto}
+.arch-box{display:inline-block;padding:12px 20px;border:2px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px;font-weight:600;text-align:center;min-width:120px}
+.arch-box.primary{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.arch-box.secondary{border-color:var(--blue);background:#eff6ff;color:var(--blue)}
+.arch-box.tertiary{border-color:var(--purple);background:#f5f3ff;color:var(--purple)}
+.arch-arrow{display:inline-block;padding:0 8px;color:var(--subtle);font-size:20px;line-height:1}
+.arch-row{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0;flex-wrap:wrap}
+.arch-label{font-size:11px;color:var(--subtle);text-align:center;margin-top:4px}
+
+/* Flow diagram */
+.flow-step{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--page);border:1px solid var(--border);border-radius:8px;margin:8px 0;font-size:13px}
+.flow-step-num{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.flow-step-content{flex:1}
+.flow-step-title{font-weight:600;color:var(--text)}
+.flow-step-desc{font-size:12px;color:var(--muted);margin-top:2px}
+
+@media(max-width:920px){.hero{padding:34px 18px 24px}.hero-row{display:block}.theme-button{margin-top:16px}.stats{padding:0 18px 22px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.shell{display:block;padding:18px}.sidebar{position:relative;top:0;max-height:320px;margin-bottom:16px}.document{padding:28px 22px}h1{font-size:27px}}
+@media print{body{background:#fff}.progress,.sidebar,.theme-button,.floating,.stats{display:none}.topbar{border:0}.hero{padding:0 0 18px}.shell{display:block;max-width:none;padding:0}.document{border:0;box-shadow:none;padding:0}.footer{display:none}pre,table,blockquote{break-inside:avoid}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+<header class="topbar">
+  <div class="hero"><div class="hero-row"><div>
+    <div class="eyebrow">Technical Solution</div>
+    <h1>Docs Viewer 需求追溯系统</h1>
+    <p>基于 DSH 插件架构的 AI 驱动需求追溯系统技术方案，包含整体架构、模块设计、API 实现和伪代码</p>
+    <div class="meta">
+      <span class="pill">v1.0</span>
+      <span class="pill">2026-09-30</span>
+      <span class="pill">zhangsan</span>
+      <span class="pill">DSH Plugin</span>
+    </div>
+  </div><button class="theme-button" type="button" id="theme-toggle">切换主题</button></div></div>
+  <div class="stats" aria-label="方案总览">
+    <div class="stat"><div class="stat-value">3</div><div class="stat-label">架构层级</div></div>
+    <div class="stat"><div class="stat-value">6</div><div class="stat-label">核心模块</div></div>
+    <div class="stat"><div class="stat-value">15</div><div class="stat-label">API 接口</div></div>
+    <div class="stat"><div class="stat-value">ctx.llm</div><div class="stat-label">AI 调用</div></div>
+    <div class="stat"><div class="stat-value">P0-P2</div><div class="stat-label">三阶段</div></div>
+  </div>
+</header>
+<div class="shell">
+  <aside class="sidebar" aria-label="文档目录"><div class="sidebar-head"><div class="sidebar-title">文档目录</div><span class="toc-count" id="toc-count">0</span></div><nav class="toc" id="toc"></nav></aside>
+  <main class="document" id="content">
+
+    <section id="overview">
+      <h2>方案总览</h2>
+      <p>本技术方案基于需求文档 v4.0，实现 AI 驱动的需求追溯系统。采用 DSH 插件架构，分为服务端（host）和客户端（client）两层，通过 HTTP API 通信。</p>
+      
+      <h3>系统整体架构图</h3>
+      <div class="arch-diagram">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Docs Viewer 需求追溯系统 — 分层架构</div>
+        </div>
+        
+        <!-- 用户层 -->
+        <div style="border:2px dashed var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+          <div style="font-size:11px;font-weight:700;color:var(--subtle);text-transform:uppercase;margin-bottom:12px">用户交互层</div>
+          <div class="arch-row">
+            <div class="arch-box primary" style="min-width:200px">
+              <div>🖥️ React 客户端</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">DocTree · SearchBar · Timeline</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- API 层 -->
+        <div style="text-align:center;color:var(--subtle);font-size:12px;margin:12px 0">
+          <div>↕ HTTP API (fetch)</div>
+          <div style="font-size:10px;margin-top:4px">15 个 RESTful 端点</div>
+        </div>
+        
+        <!-- 服务端层 -->
+        <div style="border:2px dashed var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+          <div style="font-size:11px;font-weight:700;color:var(--subtle);text-transform:uppercase;margin-bottom:12px">业务逻辑层（服务端）</div>
+          <div class="arch-row">
+            <div class="arch-box secondary">
+              <div>📁 目录管理</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">tree · create-dir</div>
+            </div>
+            <div class="arch-box secondary">
+              <div>📖 文档浏览</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">read · preview</div>
+            </div>
+            <div class="arch-box secondary">
+              <div>🔍 搜索追溯</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">search · ai-search</div>
+            </div>
+          </div>
+          <div class="arch-row" style="margin-top:12px">
+            <div class="arch-box secondary">
+              <div>🔄 分析引擎</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">analyze · rebuild-index</div>
+            </div>
+            <div class="arch-box secondary">
+              <div>📋 模板生成</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">generate-template</div>
+            </div>
+            <div class="arch-box secondary">
+              <div>⚙️ 配置管理</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">config · logs</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- DSH 服务层 -->
+        <div style="text-align:center;color:var(--subtle);font-size:12px;margin:12px 0">
+          <div>↕ DSH Services</div>
+          <div style="font-size:10px;margin-top:4px">ctx.llm · ctx.fs · ctx.workspaceRegistry</div>
+        </div>
+        
+        <!-- 基础设施层 -->
+        <div style="border:2px dashed var(--border);border-radius:12px;padding:16px">
+          <div style="font-size:11px;font-weight:700;color:var(--subtle);text-transform:uppercase;margin-bottom:12px">基础设施层</div>
+          <div class="arch-row">
+            <div class="arch-box tertiary">
+              <div>🤖 ctx.llm</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">AI 模型调用</div>
+            </div>
+            <div class="arch-box tertiary">
+              <div>💾 文件系统</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">.meta.json · search-index.json</div>
+            </div>
+            <div class="arch-box tertiary">
+              <div>📂 Workspace</div>
+              <div style="font-size:11px;font-weight:400;margin-top:4px">docs/ 目录</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>整体架构（简化版）</h3>
+      <div class="arch-diagram">
+        <div class="arch-row">
+          <div>
+            <div class="arch-box primary">客户端 (client.js)</div>
+            <div class="arch-label">React 组件 + UI 交互</div>
+          </div>
+        </div>
+        <div style="text-align:center;color:var(--subtle);font-size:12px;margin:8px 0">↕ HTTP API (fetch)</div>
+        <div class="arch-row">
+          <div>
+            <div class="arch-box secondary">服务端 (index.js)</div>
+            <div class="arch-label">路由处理 + 业务逻辑</div>
+          </div>
+        </div>
+        <div style="text-align:center;color:var(--subtle);font-size:12px;margin:8px 0">↕ DSH Services</div>
+        <div class="arch-row">
+          <div>
+            <div class="arch-box tertiary">ctx.llm</div>
+            <div class="arch-label">AI 模型调用</div>
+          </div>
+          <div>
+            <div class="arch-box tertiary">ctx.fs</div>
+            <div class="arch-label">文件系统操作</div>
+          </div>
+          <div>
+            <div class="arch-box tertiary">ctx.workspaceRegistry</div>
+            <div class="arch-label">工作区管理</div>
+          </div>
+        </div>
+      </div>
+
+      <h3>技术栈</h3>
+      <table>
+        <thead><tr><th>层级</th><th>技术</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>客户端</td><td>React + DSH Slot API</td><td>使用 React.createElement（无 JSX），通过 ctx.slots 注册 UI 组件</td></tr>
+          <tr><td>服务端</td><td>Node.js + DSH WebServer</td><td>通过 ctx.webServer.register 注册 HTTP 路由</td></tr>
+          <tr><td>AI 调用</td><td>ctx.llm.stream()</td><td>流式调用 DeepSeek 模型，使用 BlockAssembler 收集响应</td></tr>
+          <tr><td>文件操作</td><td>Node.js fs + ctx.fs</td><td>插件自身文件用 fs，工作区文件用 ctx.fs</td></tr>
+          <tr><td>数据存储</td><td>JSON 文件</td><td>.meta.json（需求元数据）+ .index/search-index.json（搜索索引）</td></tr>
+        </tbody>
+      </table>
+
+      <h3>数据流向图</h3>
+      <div class="arch-diagram">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">核心数据流向</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:8px">
+          <!-- 左列：文件输入 -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="arch-box" style="border-color:var(--blue);background:#eff6ff;color:var(--blue);font-size:12px;padding:10px 14px">
+              <div>📋 requirement.md</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">需求文档</div>
+            </div>
+            <div class="arch-box" style="border-color:var(--purple);background:#f5f3ff;color:var(--purple);font-size:12px;padding:10px 14px">
+              <div>📐 design.md</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">技术方案</div>
+            </div>
+            <div class="arch-box" style="border-color:var(--orange);background:#fffbeb;color:var(--orange);font-size:12px;padding:10px 14px">
+              <div>🔍 cr-notes.md</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">CR 记录</div>
+            </div>
+          </div>
+          <!-- 箭头 -->
+          <div style="font-size:20px;color:var(--subtle)">→</div>
+          <!-- 中列：处理 -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="arch-box primary" style="font-size:12px;padding:10px 14px">
+              <div>🤖 ctx.llm 分析</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">提取元数据</div>
+            </div>
+            <div style="text-align:center;font-size:16px;color:var(--subtle)">↓</div>
+            <div class="arch-box secondary" style="font-size:12px;padding:10px 14px">
+              <div>🔨 索引构建</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">倒排索引</div>
+            </div>
+          </div>
+          <!-- 箭头 -->
+          <div style="font-size:20px;color:var(--subtle)">→</div>
+          <!-- 右列：输出 -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="arch-box" style="border-color:var(--green);background:#f0fdf4;color:var(--green);font-size:12px;padding:10px 14px">
+              <div>⚙ .meta.json</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">需求元数据</div>
+            </div>
+            <div class="arch-box" style="border-color:var(--green);background:#f0fdf4;color:var(--green);font-size:12px;padding:10px 14px">
+              <div>📊 search-index.json</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">搜索索引</div>
+            </div>
+            <div class="arch-box" style="border-color:var(--green);background:#f0fdf4;color:var(--green);font-size:12px;padding:10px 14px">
+              <div>🔍 搜索结果</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">精确/AI 搜索</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <h2>模块一：需求目录规范</h2>
+    
+    <h3>1.1 目录结构</h3>
+    <pre data-language="Plaintext"><code class="language-plaintext">docs/                              ← config.docsDir（可配置）
+├── .index/                        ← 索引文件夹（自动管理）
+│   └── search-index.json          ← 搜索索引
+├── zhangsan/                      ← 开发者目录
+│   ├── 2026-09-30-优化慢任务/     ← 需求目录（日期-标题）
+│   │   ├── requirement.md         ← 需求文档
+│   │   ├── design.md              ← 技术方案
+│   │   ├── cr-notes.md            ← CR 记录
+│   │   └── .meta.json             ← AI 生成的元数据
+│   └── 2026-09-15-修复登录bug/
+│       └── requirement.md
+└── lisi/
+    └── 2026-09-25-新增报表功能/</code></pre>
+
+    <h3>1.2 目录解析流程图</h3>
+    <div class="arch-diagram">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">目录扫描与解析流程</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">1</div>
+        <div class="flow-step-content">
+          <div class="flow-step-title">读取 docs/ 根目录</div>
+          <div class="flow-step-desc">fs.readdir(docsDir) 获取所有开发者目录</div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--subtle);font-size:16px;margin:4px 0">↓</div>
+      <div class="flow-step">
+        <div class="flow-step-num">2</div>
+        <div class="flow-step-content">
+          <div class="flow-step-title">遍历开发者目录</div>
+          <div class="flow-step-desc">过滤 . 开头的隐藏目录，只处理有效开发者目录</div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--subtle);font-size:16px;margin:4px 0">↓</div>
+      <div class="flow-step">
+        <div class="flow-step-num">3</div>
+        <div class="flow-step-content">
+          <div class="flow-step-title">解析需求目录名</div>
+          <div class="flow-step-desc">正则匹配 /^(\d{4}-\d{2}-\d{2})-(.+)$/ 提取日期和标题</div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--subtle);font-size:16px;margin:4px 0">↓</div>
+      <div class="flow-step">
+        <div class="flow-step-num">4</div>
+        <div class="flow-step-content">
+          <div class="flow-step-title">扫描需求文件</div>
+          <div class="flow-step-desc">readdir() 获取文件列表，统计 fileCount、检查 hasMeta</div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--subtle);font-size:16px;margin:4px 0">↓</div>
+      <div class="flow-step">
+        <div class="flow-step-num">5</div>
+        <div class="flow-step-content">
+          <div class="flow-step-title">构建目录树</div>
+          <div class="flow-step-desc">返回 { developers: [{ name, requirements: [...] }] } 结构</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>1.2 目录解析实现</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// 服务端：解析需求目录
+function parseRequirementDir(dirName) {
+  // 匹配格式：YYYY-MM-DD-标题
+  const match = dirName.match(/^(\d{4}-\d{2}-\d{2})-(.+)$/);
+  if (!match) return null;
+  
+  const [, date, title] = match;
+  return {
+    date,           // "2026-09-30"
+    title,          // "优化慢任务"
+    id: dirName     // "2026-09-30-优化慢任务"
+  };
+}
+
+// 服务端：扫描所有需求
+async function scanRequirements(docsDir) {
+  const developers = await fs.readdir(docsDir);
+  const requirements = [];
+  
+  for (const dev of developers) {
+    const devPath = path.join(docsDir, dev);
+    const stat = await fs.stat(devPath);
+    if (!stat.isDirectory() || dev.startsWith('.')) continue;
+    
+    const dirs = await fs.readdir(devPath);
+    for (const dir of dirs) {
+      const parsed = parseRequirementDir(dir);
+      if (!parsed) continue;
+      
+      const reqPath = path.join(devPath, dir);
+      const files = await fs.readdir(reqPath);
+      
+      requirements.push({
+        ...parsed,
+        developer: dev,
+        path: reqPath,
+        files: files.filter(f => f.endsWith('.md')),
+        hasMeta: files.includes('.meta.json')
+      });
+    }
+  }
+  
+  // 按日期倒序排序
+  return requirements.sort((a, b) => b.date.localeCompare(a.date));
+}</code></pre>
+
+    <h3>1.3 .meta.json Schema</h3>
+    <pre data-language="JSON"><code class="language-json">{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["type", "summary", "features", "fields", "tags", "timeline"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["large", "medium", "small", "unknown"]
+    },
+    "summary": { "type": "string" },
+    "features": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fields": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "type", "title"],
+        "properties": {
+          "date": { "type": "string" },
+          "type": { "type": "string", "enum": ["requirement", "design", "cr", "release"] },
+          "title": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}</code></pre>
+
+    <h2>模块二：文档浏览</h2>
+    
+    <h3>2.1 目录树 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// GET /docs-viewer/tree
+async function handleTree(req, res) {
+  const config = await loadConfig();
+  const docsDir = path.resolve(config.docsDir);
+  
+  const tree = await buildTree(docsDir);
+  json(res, { tree });
+}
+
+async function buildTree(rootPath) {
+  const tree = { developers: [] };
+  const developers = await fs.readdir(rootPath);
+  
+  for (const dev of developers) {
+    if (dev.startsWith('.')) continue;
+    
+    const devPath = path.join(rootPath, dev);
+    const stat = await fs.stat(devPath);
+    if (!stat.isDirectory()) continue;
+    
+    const devNode = {
+      name: dev,
+      requirementCount: 0,    // 需求数量徽标
+      requirements: []
+    };
+    
+    const dirs = await fs.readdir(devPath);
+    for (const dir of dirs) {
+      const parsed = parseRequirementDir(dir);
+      if (!parsed) continue;
+      
+      const reqPath = path.join(devPath, dir);
+      const files = await fs.readdir(reqPath);
+      
+      const mdFiles = files.filter(f => f.endsWith('.md') || f.endsWith('.html'));
+      const hasMeta = files.includes('.meta.json');
+      
+      // 获取 .meta.json 的修改时间（分析状态时间戳）
+      let metaUpdatedAt = null;
+      if (hasMeta) {
+        const metaStat = await fs.stat(path.join(reqPath, '.meta.json'));
+        metaUpdatedAt = metaStat.mtime.toISOString();
+      }
+      
+      devNode.requirements.push({
+        ...parsed,
+        files: mdFiles.map(f => ({
+          name: f,
+          type: inferDocType(f)
+        })),
+        fileCount: mdFiles.length,    // 文档数量统计
+        hasMeta,                       // .meta.json 状态标记
+        metaUpdatedAt                  // 分析时间戳
+      });
+    }
+    
+    devNode.requirementCount = devNode.requirements.length;
+    tree.developers.push(devNode);
+  }
+  
+  return tree;
+}
+
+function inferDocType(filename) {
+  const lower = filename.toLowerCase();
+  if (lower.includes('requirement')) return 'requirement';
+  if (lower.includes('design')) return 'design';
+  if (lower.includes('cr')) return 'cr';
+  return 'other';
+}</code></pre>
+
+    <h3>2.2 文档读取 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// GET /docs-viewer/read?path=xxx
+async function handleRead(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+  const filePath = url.searchParams.get('path');
+  
+  if (!filePath) {
+    json(res, { error: 'path required' }, 400);
+    return;
+  }
+  
+  const config = await loadConfig();
+  const docsDir = path.resolve(config.docsDir);
+  const target = path.resolve(docsDir, filePath);
+  
+  // 安全检查：确保在 docsDir 内
+  if (!target.startsWith(docsDir)) {
+    json(res, { error: 'access denied' }, 403);
+    return;
+  }
+  
+  const content = await fs.readFile(target, 'utf8');
+  json(res, { content, path: filePath });
+}</code></pre>
+
+    <h3>2.3 客户端组件</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// client.js
+function DocTreePanel({ docsDir }) {
+  const [tree, setTree] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedReqId, setSelectedReqId] = useState(null);
+  
+  useEffect(() => {
+    fetch(`/docs-viewer/tree?docsDir=${docsDir}`)
+      .then(r => r.json())
+      .then(data => setTree(data.tree));
+  }, [docsDir]);
+  
+  if (!tree) return h('div', null, '加载中...');
+  
+  return h('div', { className: 'doc-tree' },
+    tree.developers.map((dev, idx) =>
+      h(DeveloperNode, {
+        key: dev.name,
+        developer: dev,
+        defaultExpanded: idx === 0,  // 默认展开第一个开发者
+        onFileSelect: setSelectedFile,
+        onReqSelect: setSelectedReqId
+      })
+    )
+  );
+}
+
+function DeveloperNode({ developer, defaultExpanded, onFileSelect, onReqSelect }) {
+  const [expanded, setExpanded] = useState(defaultExpanded || false);
+  
+  return h('div', { className: 'dev-node' },
+    h('div', {
+      className: 'dev-header',
+      onClick: () => setExpanded(!expanded)
+    },
+      h('span', null, expanded ? '▼' : '▶'),
+      h('span', null, `📁 ${developer.name}`),
+      // 需求数量徽标
+      h('span', { className: 'count-badge' }, `(${developer.requirementCount})`)
+    ),
+    expanded && h('div', { className: 'req-list' },
+      developer.requirements.map(req =>
+        h(RequirementNode, {
+          key: req.id,
+          requirement: req,
+          onFileSelect,
+          onReqSelect
+        })
+      )
+    )
+  );
+}
+
+function RequirementNode({ requirement, onFileSelect, onReqSelect }) {
+  const [expanded, setExpanded] = useState(false);
+  
+  return h('div', { className: 'req-node' },
+    h('div', {
+      className: 'req-header',
+      onClick: () => {
+        setExpanded(!expanded);
+        onReqSelect(requirement.id);
+      }
+    },
+      h('span', null, `📂 ${requirement.date.slice(5)} ${requirement.title}`)
+    ),
+    expanded && h('div', { className: 'file-list' },
+      // 文档文件子项展示
+      requirement.files.length > 0
+        ? requirement.files.map(file =>
+            h('div', {
+              className: 'file-item',
+              onClick: () => onFileSelect({ ...file, reqId: requirement.id })
+            },
+              h('span', null, `${getDocIcon(file.type)} ${file.name}`)
+            )
+          )
+        // 空目录提示
+        : h('div', { className: 'empty-hint' }, '（无文档）'),
+      // .meta.json 状态标记
+      requirement.hasMeta
+        ? h('div', { className: 'meta-item' }, '⚙ .meta.json')
+        : null
+    )
+  );
+}
+
+function getDocIcon(type) {
+  const icons = { requirement: '📋', design: '📐', cr: '🔍', other: '📄' };
+  return icons[type] || '📄';
+}
+
+// 文档预览面包屑组件
+function DocBreadcrumb({ file, requirement }) {
+  return h('div', { className: 'doc-breadcrumb' },
+    `${getDocIcon(file.type)} ${file.name} — ${requirement.date} ${requirement.title}`
+  );
+}</code></pre>
+
+    <h3>2.4 客户端组件层级图</h3>
+    <div class="arch-diagram">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">React 组件树</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <!-- Root -->
+        <div class="arch-box primary" style="min-width:260px">
+          <div>TabBodyWrapper</div>
+          <div style="font-size:10px;font-weight:400;margin-top:2px">顶层容器 · 加载 workspaces + config</div>
+        </div>
+        <div style="font-size:14px;color:var(--subtle)">↓</div>
+        <!-- Body -->
+        <div class="arch-box primary" style="min-width:260px">
+          <div>DocsViewerBody</div>
+          <div style="font-size:10px;font-weight:400;margin-top:2px">三区布局容器 · 管理 selectedReqId / activePanel</div>
+        </div>
+        <div style="font-size:14px;color:var(--subtle)">↓ 三个子区域</div>
+        <!-- Three columns -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;width:100%">
+          <div>
+            <div class="arch-box secondary" style="width:100%;font-size:12px;padding:10px">
+              <div>🛠️ RailToolbar</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">64px 工具栏</div>
+            </div>
+            <div style="text-align:center;font-size:12px;color:var(--subtle);margin:4px 0">↓</div>
+            <div class="arch-box" style="width:100%;font-size:11px;padding:8px;border-color:var(--purple);background:#f5f3ff;color:var(--purple)">
+              Panel: CreateDir / Analyze / Index / Template / Logs / Settings
+            </div>
+          </div>
+          <div>
+            <div class="arch-box secondary" style="width:100%;font-size:12px;padding:10px">
+              <div>📂 DocTreePanel</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">文档浏览区</div>
+            </div>
+            <div style="text-align:center;font-size:12px;color:var(--subtle);margin:4px 0">↓</div>
+            <div class="arch-box" style="width:100%;font-size:11px;padding:8px;border-color:var(--purple);background:#f5f3ff;color:var(--purple)">
+              DeveloperNode → RequirementNode → FileItem
+            </div>
+            <div style="text-align:center;font-size:12px;color:var(--subtle);margin:4px 0">↓</div>
+            <div class="arch-box" style="width:100%;font-size:11px;padding:8px;border-color:var(--purple);background:#f5f3ff;color:var(--purple)">
+              FilePreview + DocBreadcrumb
+            </div>
+          </div>
+          <div>
+            <div class="arch-box secondary" style="width:100%;font-size:12px;padding:10px">
+              <div>🔍 TracePanel</div>
+              <div style="font-size:10px;font-weight:400;margin-top:2px">需求追溯区</div>
+            </div>
+            <div style="text-align:center;font-size:12px;color:var(--subtle);margin:4px 0">↓</div>
+            <div class="arch-box" style="width:100%;font-size:11px;padding:8px;border-color:var(--purple);background:#f5f3ff;color:var(--purple)">
+              SearchBar → SearchResults → ResultCard
+            </div>
+            <div style="text-align:center;font-size:12px;color:var(--subtle);margin:4px 0">↓</div>
+            <div class="arch-box" style="width:100%;font-size:11px;padding:8px;border-color:var(--purple);background:#f5f3ff;color:var(--purple)">
+              TimelineView → TimelineItem
+            </div>
+          </div>
+        </div>
+        <!-- Status bar -->
+        <div style="font-size:14px;color:var(--subtle)">↓</div>
+        <div class="arch-box" style="min-width:260px;font-size:12px;padding:8px;border-color:var(--subtle);background:var(--soft);color:var(--muted)">
+          StatusBar — 版本号 · docsDir · 需求总数 · 索引状态
+        </div>
+      </div>
+    </div>
+
+    <h2>模块三：需求追溯</h2>
+    
+    <h3>3.1 搜索索引结构</h3>
+    <pre data-language="JSON"><code class="language-json">{
+  "version": 1,
+  "builtAt": "2026-09-30T10:30:00Z",
+  "requirements": [
+    {
+      "id": "2026-09-30-优化慢任务",
+      "developer": "zhangsan",
+      "date": "2026-09-30",
+      "title": "优化慢任务",
+      "type": "large",
+      "summary": "优化慢任务执行时间从30分钟降至5分钟",
+      "features": ["TtKolContentKeyContentJob", "任务调度优化"],
+      "fields": ["tt_kol_content.key_content"],
+      "tags": ["performance", "job"]
+    }
+  ],
+  "featureIndex": {
+    "TtKolContentKeyContentJob": ["2026-09-30-优化慢任务"],
+    "任务调度优化": ["2026-09-30-优化慢任务"]
+  },
+  "fieldIndex": {
+    "tt_kol_content.key_content": ["2026-09-30-优化慢任务"]
+  },
+  "tagIndex": {
+    "performance": ["2026-09-30-优化慢任务"],
+    "job": ["2026-09-30-优化慢任务"]
+  }
+}</code></pre>
+
+    <h3>3.2 精确搜索 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// GET /docs-viewer/search?q=xxx&type=feature|field|tag
+async function handleSearch(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+  const query = url.searchParams.get('q');
+  const type = url.searchParams.get('type') || 'all';
+  
+  if (!query) {
+    json(res, { error: 'query required' }, 400);
+    return;
+  }
+  
+  const config = await loadConfig();
+  const indexPath = path.join(config.docsDir, '.index', 'search-index.json');
+  
+  if (!fs.existsSync(indexPath)) {
+    json(res, { error: 'index not built' }, 404);
+    return;
+  }
+  
+  const index = JSON.parse(await fs.readFile(indexPath, 'utf8'));
+  const results = [];
+  
+  // 根据类型搜索
+  if (type === 'all' || type === 'feature') {
+    for (const [feature, reqIds] of Object.entries(index.featureIndex)) {
+      if (feature.toLowerCase().includes(query.toLowerCase())) {
+        results.push(...reqIds);
+      }
+    }
+  }
+  
+  if (type === 'all' || type === 'field') {
+    for (const [field, reqIds] of Object.entries(index.fieldIndex)) {
+      if (field.toLowerCase().includes(query.toLowerCase())) {
+        results.push(...reqIds);
+      }
+    }
+  }
+  
+  if (type === 'all' || type === 'tag') {
+    for (const [tag, reqIds] of Object.entries(index.tagIndex)) {
+      if (tag.toLowerCase().includes(query.toLowerCase())) {
+        results.push(...reqIds);
+      }
+    }
+  }
+  
+  // 去重并获取完整需求信息
+  const uniqueIds = [...new Set(results)];
+  const matchedReqs = index.requirements.filter(r => uniqueIds.includes(r.id));
+  
+  // 附加源码引用片段（从索引中存储的 snippets 获取）
+  const enrichResults = matchedReqs.map(req => ({
+    ...req,
+    snippets: index.snippets?.[req.id]?.filter(s =>
+      s.text.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 3) || []   // 最多返回 3 条引用
+  }));
+  
+  json(res, { results: enrichResults, total: enrichResults.length });
+}</code></pre>
+
+    <h3>3.3 AI 智能搜索 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// POST /docs-viewer/ai-search
+async function handleAiSearch(req, res) {
+  const body = await readBody(req);
+  const { query } = body;
+  
+  if (!query) {
+    json(res, { error: 'query required' }, 400);
+    return;
+  }
+  
+  const config = await loadConfig();
+  const indexPath = path.join(config.docsDir, '.index', 'search-index.json');
+  const index = JSON.parse(await fs.readFile(indexPath, 'utf8'));
+  
+  // 构建索引摘要（只传关键信息，控制 token 数量）
+  const indexSummary = index.requireations.map(r => ({
+    id: r.id,
+    title: r.title,
+    summary: r.summary,
+    features: r.features.slice(0, 5),  // 限制数量
+    fields: r.fields.slice(0, 5),
+    tags: r.tags
+  }));
+  
+  const prompt = `你是一个需求追溯助手。用户输入查询词，你需要从索引中找到语义相关的需求。
+
+查询词：${query}
+
+索引摘要：
+${JSON.stringify(indexSummary, null, 2)}
+
+请返回 JSON 格式：
+{
+  "matches": [
+    {
+      "id": "需求ID",
+      "score": 92,  // 0-100 匹配度
+      "reason": "匹配原因"
+    }
+  ]
+}
+
+只返回与查询词相关的需求，不相关的不返回。`;
+  
+  try {
+    const llm = ctx.llm;
+    const stream = llm.stream({
+      provider: config.ai?.provider || 'deepseek',
+      model: config.ai?.model || 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      maxTokens: 2000
+    });
+    
+    let content = '';
+    for await (const chunk of stream) {
+      if (chunk.type === 'text-delta') {
+        content += chunk.text;
+      }
+    }
+    
+    // 解析 AI 响应
+    const aiResult = parseAiResponse(content);
+    
+    // 关联完整需求信息
+    const results = aiResult.matches.map(m => {
+      const req = index.requirements.find(r => r.id === m.id);
+      return req ? { ...req, score: m.score, reason: m.reason } : null;
+    }).filter(Boolean);
+    
+    json(res, { results, total: results.length });
+  } catch (err) {
+    json(res, { error: 'AI search failed: ' + err.message }, 500);
+  }
+}
+
+function parseAiResponse(content) {
+  try {
+    // 尝试直接解析
+    return JSON.parse(content);
+  } catch {
+    // 尝试提取 JSON 代码块
+    const match = content.match(/```json\n([\s\S]+?)\n```/);
+    if (match) {
+      return JSON.parse(match[1]);
+    }
+    // 降级
+    return { matches: [] };
+  }
+}</code></pre>
+
+    <h2>模块四：操作指引</h2>
+    
+    <h3>4.1 创建需求目录 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// POST /docs-viewer/create-dir
+async function handleCreateDir(req, res) {
+  const body = await readBody(req);
+  const { developer, date, title } = body;
+  
+  if (!developer || !date || !title) {
+    json(res, { error: 'missing fields' }, 400);
+    return;
+  }
+  
+  const config = await loadConfig();
+  const docsDir = path.resolve(config.docsDir);
+  const dirName = `${date}-${title}`;
+  const targetPath = path.join(docsDir, developer, dirName);
+  
+  // 检查是否已存在
+  if (fs.existsSync(targetPath)) {
+    json(res, { error: 'directory exists' }, 409);
+    return;
+  }
+  
+  // 创建目录
+  await fs.mkdir(targetPath, { recursive: true });
+  
+  json(res, { success: true, path: targetPath });
+}</code></pre>
+
+    <h3>4.2 AI 分析需求 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// POST /docs-viewer/analyze
+async function handleAnalyze(req, res) {
+  const body = await readBody(req);
+  const { requirementId } = body;
+  
+  const config = await loadConfig();
+  const docsDir = path.resolve(config.docsDir);
+  
+  // 查找需求目录
+  const reqPath = findRequirementPath(docsDir, requirementId);
+  if (!reqPath) {
+    json(res, { error: 'requirement not found' }, 404);
+    return;
+  }
+  
+  // 读取所有 .md 文件
+  const files = await fs.readdir(reqPath);
+  const mdFiles = files.filter(f => f.endsWith('.md'));
+  
+  let docsContent = '';
+  for (const file of mdFiles) {
+    const content = await fs.readFile(path.join(reqPath, file), 'utf8');
+    docsContent += `\n\n## ${file}\n${content}`;
+  }
+  
+  // 截断过长内容（避免超出 context window）
+  if (docsContent.length > 30000) {
+    docsContent = docsContent.slice(0, 30000) + '\n\n[内容已截断]';
+  }
+  
+  // 构建 Prompt
+  const prompt = config.ai?.prompts?.analyze || DEFAULT_ANALYZE_PROMPT;
+  const fullPrompt = `${prompt}\n\n${docsContent}`;
+  
+  try {
+    const llm = ctx.llm;
+    const stream = llm.stream({
+      provider: config.ai?.provider || 'deepseek',
+      model: config.ai?.model || 'deepseek-chat',
+      messages: [{ role: 'user', content: fullPrompt }],
+      temperature: 0.3,
+      maxTokens: 4000
+    });
+    
+    let content = '';
+    for await (const chunk of stream) {
+      if (chunk.type === 'text-delta') {
+        content += chunk.text;
+      }
+    }
+    
+    // 解析并校验
+    const meta = parseAndValidateMeta(content);
+    
+    // 原子写入 .meta.json
+    const metaPath = path.join(reqPath, '.meta.json');
+    const tmpPath = metaPath + '.tmp';
+    await fs.writeFile(tmpPath, JSON.stringify(meta, null, 2));
+    await fs.rename(tmpPath, metaPath);
+    
+    json(res, { success: true, meta });
+  } catch (err) {
+    json(res, { error: 'analyze failed: ' + err.message }, 500);
+  }
+}
+
+const DEFAULT_ANALYZE_PROMPT = `分析以下需求文档，提取关键信息并返回 JSON 格式：
+
+{
+  "type": "large|medium|small|unknown",  // 需求规模
+  "summary": "一句话总结",
+  "features": ["功能点1", "功能点2"],
+  "fields": ["表名.字段名"],
+  "tags": ["标签1", "标签2"],
+  "timeline": [
+    {
+      "date": "YYYY-MM-DD",
+      "type": "requirement|design|cr|release",
+      "title": "事件标题",
+      "description": "事件描述"
+    }
+  ]
+}
+
+只返回 JSON，不要其他内容。`;
+
+function parseAndValidateMeta(content) {
+  let meta;
+  
+  // 三级容错
+  try {
+    // 1. 直接解析
+    meta = JSON.parse(content);
+  } catch {
+    // 2. 提取 JSON 代码块
+    const match = content.match(/```json\n([\s\S]+?)\n```/);
+    if (match) {
+      meta = JSON.parse(match[1]);
+    } else {
+      // 3. 降级默认值
+      meta = {
+        type: 'unknown',
+        summary: '',
+        features: [],
+        fields: [],
+        tags: [],
+        timeline: []
+      };
+    }
+  }
+  
+  // Schema 校验（简化版）
+  if (!meta.type) meta.type = 'unknown';
+  if (!meta.summary) meta.summary = '';
+  if (!Array.isArray(meta.features)) meta.features = [];
+  if (!Array.isArray(meta.fields)) meta.fields = [];
+  if (!Array.isArray(meta.tags)) meta.tags = [];
+  if (!Array.isArray(meta.timeline)) meta.timeline = [];
+  
+  return meta;
+}</code></pre>
+
+    <h3>4.3 重建索引 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// POST /docs-viewer/rebuild-index
+async function handleRebuildIndex(req, res) {
+  const config = await loadConfig();
+  const docsDir = path.resolve(config.docsDir);
+  
+  // 扫描所有需求
+  const requirements = await scanRequirements(docsDir);
+  
+  // 构建索引
+  const index = {
+    version: 1,
+    builtAt: new Date().toISOString(),
+    requirements: [],
+    featureIndex: {},
+    fieldIndex: {},
+    tagIndex: {}
+  };
+  
+  for (const req of requirements) {
+    if (!req.hasMeta) continue;
+    
+    const metaPath = path.join(req.path, '.meta.json');
+    const meta = JSON.parse(await fs.readFile(metaPath, 'utf8'));
+    
+    const reqEntry = {
+      id: req.id,
+      developer: req.developer,
+      date: req.date,
+      title: req.title,
+      type: meta.type,
+      summary: meta.summary,
+      features: meta.features,
+      fields: meta.fields,
+      tags: meta.tags
+    };
+    
+    index.requirements.push(reqEntry);
+    
+    // 构建倒排索引
+    for (const feature of meta.features) {
+      if (!index.featureIndex[feature]) {
+        index.featureIndex[feature] = [];
+      }
+      index.featureIndex[feature].push(req.id);
+    }
+    
+    for (const field of meta.fields) {
+      if (!index.fieldIndex[field]) {
+        index.fieldIndex[field] = [];
+      }
+      index.fieldIndex[field].push(req.id);
+    }
+    
+    for (const tag of meta.tags) {
+      if (!index.tagIndex[tag]) {
+        index.tagIndex[tag] = [];
+      }
+      index.tagIndex[tag].push(req.id);
+    }
+  }
+  
+  // 写入索引文件
+  const indexPath = path.join(docsDir, '.index', 'search-index.json');
+  await fs.mkdir(path.dirname(indexPath), { recursive: true });
+  await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
+  
+  json(res, {
+    success: true,
+    stats: {
+      requirements: index.requirements.length,
+      features: Object.keys(index.featureIndex).length,
+      fields: Object.keys(index.fieldIndex).length,
+      tags: Object.keys(index.tagIndex).length
+    }
+  });
+}</code></pre>
+
+    <h2>模块五：AI 分析引擎</h2>
+    
+    <h3>5.1 ctx.llm 调用模式</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// 服务端：封装 LLM 调用
+async function callLLM(prompt, config) {
+  const llm = ctx.llm;
+  
+  const stream = llm.stream({
+    provider: config.ai?.provider || 'deepseek',
+    model: config.ai?.model || 'deepseek-chat',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    maxTokens: 4000
+  });
+  
+  let content = '';
+  let usage = null;
+  let finishReason = null;
+  
+  for await (const chunk of stream) {
+    if (chunk.type === 'text-delta') {
+      content += chunk.text;
+    } else if (chunk.type === 'usage') {
+      usage = chunk.usage;
+    } else if (chunk.type === 'finish') {
+      finishReason = chunk.reason;
+    }
+  }
+  
+  // 检查异常结束
+  if (finishReason?.kind === 'error') {
+    throw new Error(`LLM error: ${finishReason.failure.message}`);
+  }
+  
+  if (finishReason?.kind === 'max-tokens') {
+    console.warn('LLM output truncated due to max-tokens limit');
+  }
+  
+  return { content, usage, finishReason };
+}</code></pre>
+
+    <h3>5.2 配置管理</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// config.json
+{
+  "docsDir": "docs",
+  "ai": {
+    "enabled": true,
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "prompts": {
+      "analyze": "自定义分析 Prompt...",
+      "aiSearch": "自定义 AI 搜索 Prompt..."
+    }
+  }
+}
+
+// 服务端：加载配置
+async function loadConfig() {
+  const configPath = path.join(import.meta.dirname, 'config.json');
+  
+  if (!fs.existsSync(configPath)) {
+    return {
+      docsDir: 'docs',
+      ai: {
+        enabled: true,
+        provider: 'deepseek',
+        model: 'deepseek-chat'
+      }
+    };
+  }
+  
+  return JSON.parse(await fs.readFile(configPath, 'utf8'));
+}
+
+// 服务端：保存配置
+async function saveConfig(config) {
+  const configPath = path.join(import.meta.dirname, 'config.json');
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+}</code></pre>
+
+    <h2>模块六：索引存储</h2>
+    
+    <h3>6.1 索引文件管理</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// 索引路径：{docsDir}/.index/search-index.json
+function getIndexPath(docsDir) {
+  return path.join(docsDir, '.index', 'search-index.json');
+}
+
+// 检查索引是否存在
+async function indexExists(docsDir) {
+  const indexPath = getIndexPath(docsDir);
+  return fs.existsSync(indexPath);
+}
+
+// 读取索引
+async function loadIndex(docsDir) {
+  const indexPath = getIndexPath(docsDir);
+  
+  if (!fs.existsSync(indexPath)) {
+    return null;
+  }
+  
+  return JSON.parse(await fs.readFile(indexPath, 'utf8'));
+}
+
+// 增量更新索引（分析单个需求后）
+async function updateIndexEntry(docsDir, reqId, meta) {
+  const index = await loadIndex(docsDir);
+  
+  if (!index) {
+    // 索引不存在，跳过
+    return;
+  }
+  
+  // 删除旧条目
+  index.requirements = index.requirements.filter(r => r.id !== reqId);
+  
+  // 清理倒排索引
+  for (const idx of Object.keys(index.featureIndex)) {
+    index.featureIndex[idx] = index.featureIndex[idx].filter(id => id !== reqId);
+    if (index.featureIndex[idx].length === 0) {
+      delete index.featureIndex[idx];
+    }
+  }
+  // 同样处理 fieldIndex 和 tagIndex...
+  
+  // 添加新条目
+  const req = findRequirementById(docsDir, reqId);
+  index.requirements.push({
+    id: reqId,
+    developer: req.developer,
+    date: req.date,
+    title: req.title,
+    type: meta.type,
+    summary: meta.summary,
+    features: meta.features,
+    fields: meta.fields,
+    tags: meta.tags
+  });
+  
+  // 更新倒排索引
+  for (const feature of meta.features) {
+    if (!index.featureIndex[feature]) {
+      index.featureIndex[feature] = [];
+    }
+    index.featureIndex[feature].push(reqId);
+  }
+  // 同样处理 fields 和 tags...
+  
+  // 原子写入
+  const indexPath = getIndexPath(docsDir);
+  const tmpPath = indexPath + '.tmp';
+  await fs.writeFile(tmpPath, JSON.stringify(index, null, 2));
+  await fs.rename(tmpPath, indexPath);
+}</code></pre>
+
+    <h3>6.2 索引状态查询 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// GET /docs-viewer/index-status
+async function handleIndexStatus(req, res) {
+  const config = await loadConfig();
+  const docsDir = path.resolve(config.docsDir);
+  const indexPath = path.join(docsDir, '.index', 'search-index.json');
+  
+  if (!fs.existsSync(indexPath)) {
+    json(res, {
+      built: false,
+      builtAt: null,
+      stats: null
+    });
+    return;
+  }
+  
+  const stat = await fs.stat(indexPath);
+  const index = JSON.parse(await fs.readFile(indexPath, 'utf8'));
+  
+  json(res, {
+    built: true,
+    builtAt: stat.mtime.toISOString(),
+    stats: {
+      requirements: index.requirements.length,
+      features: Object.keys(index.featureIndex).length,
+      fields: Object.keys(index.fieldIndex).length,
+      tags: Object.keys(index.tagIndex).length
+    }
+  });
+}</code></pre>
+
+    <h3>6.3 操作日志 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// 内存日志存储（最近 100 条）
+const operationLogs = [];
+const MAX_LOGS = 100;
+
+function addLog(type, message, data = null) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    type,      // 'info' | 'success' | 'warning' | 'error'
+    message,
+    data
+  };
+  operationLogs.unshift(entry);  // 最新在前
+  if (operationLogs.length > MAX_LOGS) {
+    operationLogs.pop();
+  }
+}
+
+// GET /docs-viewer/logs
+async function handleLogs(req, res) {
+  json(res, { logs: operationLogs });
+}
+
+// 在 analyze 函数中使用
+async function handleAnalyze(req, res) {
+  const startTime = Date.now();
+  addLog('info', `📄 开始分析需求: ${requirementId}`);
+  
+  try {
+    // 读取文档
+    addLog('info', `📄 读取 ${mdFiles.length} 个文档 (${mdFiles.join(', ')}…)`);
+    
+    // 调用 AI
+    addLog('info', '🔄 调用 ctx.llm 分析文档…');
+    
+    // 写入结果
+    addLog('success', `✅ 分析完成: ${requirementId} (${elapsed}s)`);
+  } catch (err) {
+    addLog('error', `❌ 分析失败: ${err.message}`);
+  }
+}</code></pre>
+
+    <h3>6.4 AI 生成文档模板 API</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// POST /docs-viewer/generate-template
+async function handleGenerateTemplate(req, res) {
+  const body = await readBody(req);
+  const { requirementId, docType, useAI } = body;
+  
+  // docType: 'requirement' | 'design' | 'cr'
+  const templates = {
+    requirement: REQUIREMENT_TEMPLATE,
+    design: DESIGN_TEMPLATE,
+    cr: CR_TEMPLATE
+  };
+  
+  let content;
+  if (useAI) {
+    // 调用 AI 生成
+    const reqPath = findRequirementPath(docsDir, requirementId);
+    const prompt = `基于以下需求目录信息，生成${docType}文档模板：
+目录名：${requirementId}
+路径：${reqPath}
+
+请生成完整的 Markdown 文档内容。`;
+    
+    try {
+      const { content: aiContent } = await callLLM(prompt, config);
+      content = aiContent;
+    } catch (err) {
+      // AI 失败时降级为静态模板
+      addLog('warning', `⚠️ AI 生成失败，降级为静态模板: ${err.message}`);
+      content = templates[docType];
+    }
+  } else {
+    content = templates[docType];
+  }
+  
+  // 写入文件
+  const reqPath = findRequirementPath(docsDir, requirementId);
+  const fileName = `${docType}.md`;
+  const filePath = path.join(reqPath, fileName);
+  await fs.writeFile(filePath, content);
+  
+  addLog('success', `📋 生成${docType}文档模板: ${fileName}`);
+  json(res, { success: true, path: filePath, content });
+}
+
+const REQUIREMENT_TEMPLATE = `# 需求文档
+
+## 背景
+描述需求的背景和原因。
+
+## 目标
+明确需求要达成的目标。
+
+## 功能点
+- [ ] 功能点 1
+- [ ] 功能点 2
+
+## 涉及字段
+| 表名 | 字段名 | 变更类型 | 说明 |
+|------|--------|---------|------|
+|      |        |         |      |
+
+## 验收标准
+- [ ] 标准 1
+- [ ] 标准 2
+`;
+
+const DESIGN_TEMPLATE = `# 技术方案
+
+## 方案概述
+简述技术方案的整体思路。
+
+## 架构设计
+描述系统架构和模块划分。
+
+## 接口设计
+### 接口 1
+- 路径：
+- 方法：
+- 参数：
+- 返回：
+
+## 数据库变更
+| 表名 | 字段 | 类型 | 说明 |
+|------|------|------|------|
+|      |      |      |      |
+
+## 风险评估
+- 风险 1：
+- 风险 2：
+`;
+
+const CR_TEMPLATE = `# CR 记录
+
+## CR 时间
+YYYY-MM-DD
+
+## 参与人员
+- 提交人：
+- 审核人：
+
+## CR 意见
+### 问题 1
+- 严重程度：
+- 描述：
+- 建议：
+
+### 问题 2
+- 严重程度：
+- 描述：
+- 建议：
+
+## 结论
+- [ ] 通过
+- [ ] 需修改后通过
+- [ ] 不通过
+`;</code></pre>
+
+    <h2>API 汇总</h2>
+    
+    <table>
+      <thead><tr><th>方法</th><th>路径</th><th>描述</th><th>模块</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/docs-viewer/tree</code></td><td>获取文档目录树（含 fileCount、hasMeta、metaUpdatedAt、requirementCount）</td><td>文档浏览</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/read</code></td><td>读取文档内容</td><td>文档浏览</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/search</code></td><td>精确搜索需求（含源码引用片段 snippets）</td><td>需求追溯</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/ai-search</code></td><td>AI 智能搜索（语义匹配 + 匹配原因）</td><td>需求追溯</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/create-dir</code></td><td>创建需求目录</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/analyze</code></td><td>分析单个需求（含进度日志、耗时统计）</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/analyze-all</code></td><td>全量分析所有需求（含进度跟踪）</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/rebuild-index</code></td><td>重建搜索索引（含文档片段存储）</td><td>操作指引</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/index-status</code></td><td>获取索引状态（是否构建、构建时间、统计信息）</td><td>操作指引</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/logs</code></td><td>获取操作日志列表（最近 100 条）</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/generate-template</code></td><td>AI 生成文档模板（需求/方案/CR）</td><td>操作指引</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/config</code></td><td>获取配置</td><td>设置</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/config</code></td><td>保存配置</td><td>设置</td></tr>
+      </tbody>
+    </table>
+
+    <h2>实施计划</h2>
+    
+    <table>
+      <thead><tr><th>阶段</th><th>内容</th><th>工期</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td><strong>P0 — MVP</strong></td><td>目录规范 + 文档浏览 + 创建目录 + 文档模板</td><td>3 天</td><td style="color:var(--red);font-weight:700">必须</td></tr>
+        <tr><td><strong>P1 — AI</strong></td><td>AI 分析引擎 + 搜索索引 + 精确搜索</td><td>4 天</td><td style="color:var(--yellow);font-weight:700">重要</td></tr>
+        <tr><td><strong>P2 — 增强</strong></td><td>AI 智能搜索 + 字段关联 + 操作日志</td><td>1.5 天</td><td style="color:var(--green);font-weight:700">可选</td></tr>
+      </tbody>
+    </table>
+
+    <h3>P0 任务分解</h3>
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：目录扫描 API</div>
+        <div class="flow-step-desc">实现 GET /docs-viewer/tree，扫描 docs 目录构建三级树形结构，返回 fileCount、hasMeta、metaUpdatedAt、requirementCount 等字段</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：DocTree 组件</div>
+        <div class="flow-step-desc">实现三级树形目录，支持折叠展开（▼/▶）、文档文件子项展示、空目录提示、.meta.json 状态标记、开发者数量徽标</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：三区布局框架 + 工具栏</div>
+        <div class="flow-step-desc">实现左侧 Rail 工具栏（64px）+ 中间文档浏览 + 右侧需求追溯；工具栏按钮激活状态切换、面板关闭按钮</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：文档预览 + 面包屑</div>
+        <div class="flow-step-desc">实现文档预览区顶部面包屑导航（图标 文件名 — 需求标题），Markdown 渲染 + 代码块语法高亮（highlight.js）</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：创建目录 API + 客户端表单</div>
+        <div class="flow-step-desc">实现 POST /docs-viewer/create-dir；客户端表单含路径预览、提示文字、关闭按钮</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">6</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：文档模板生成 API + 客户端预览</div>
+        <div class="flow-step-desc">实现静态模板生成 + AI 生成两种方式；客户端显示目标路径、输出文件名、模板预览代码块</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">7</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：底部状态栏</div>
+        <div class="flow-step-desc">界面底部显示插件版本号、docsDir 路径、需求总数、索引状态</div>
+      </div>
+    </div>
+
+    <h3>P1 任务分解</h3>
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：AI 分析引擎</div>
+        <div class="flow-step-desc">集成 ctx.llm，实现 Prompt 管理、JSON 解析容错、文档截断保护（30000 字符）、分析进度日志、耗时统计、max-tokens 截断警告、错误处理</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：分析 API + .meta.json 读写</div>
+        <div class="flow-step-desc">实现 POST /docs-viewer/analyze，原子写入 .meta.json；分析面板显示当前需求信息、分析状态时间戳、AI 配置</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：索引构建 + 片段存储</div>
+        <div class="flow-step-desc">实现 POST /docs-viewer/rebuild-index，构建倒排索引同时存储文档摘要片段（snippets）；实现 GET /docs-viewer/index-status 返回索引状态和统计</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：精确搜索 API</div>
+        <div class="flow-step-desc">实现 GET /docs-viewer/search，基于索引搜索需求，返回源码引用片段（snippets）</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：SearchBar + Results + Timeline</div>
+        <div class="flow-step-desc">实现搜索框、类型筛选、结果计数、结果卡片（含规模标签、源码引用）、时间线展示（含节点描述）、未分析提示</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">6</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：索引管理面板</div>
+        <div class="flow-step-desc">实现索引状态显示（已构建/未构建）、构建时间、统计信息网格、重建按钮、查看索引文件按钮</div>
+      </div>
+    </div>
+
+    <h3>P2 任务分解</h3>
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：AI 智能搜索</div>
+        <div class="flow-step-desc">实现 POST /docs-viewer/ai-search，调用 ctx.llm 进行语义匹配，返回匹配度评分和匹配原因</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">客户端：搜索模式切换 + AI 结果展示</div>
+        <div class="flow-step-desc">实现精确搜索/AI 智能搜索 segmented control 切换、AI 加载状态、匹配原因说明卡片</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：字段关联查询 + 客户端面板</div>
+        <div class="flow-step-desc">实现 GET /docs-viewer/fields/:field；客户端渲染跨需求字段关联面板（按日期倒序列出需求及变更说明）</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <div class="flow-step-content">
+        <div class="flow-step-title">服务端：操作日志 + 客户端日志组件</div>
+        <div class="flow-step-desc">实现内存日志存储（最近 100 条）、GET /docs-viewer/logs；客户端实时追加日志条目（带时间戳和颜色编码）</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<div class="floating"><button class="float-btn" type="button" id="back-to-top" title="返回顶部" aria-label="返回顶部">↑</button></div>
+<footer class="footer">Docs Viewer 需求追溯系统 · 技术方案 v1.0 · 2026-09-30</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.12.0/highlight.min.js"></script>
+<script>
+(function(){
+  const root=document.documentElement;
+  const themeKey='technical-solution-theme';
+  function readStoredTheme(){try{return localStorage.getItem(themeKey);}catch(e){return null;}}
+  function writeStoredTheme(v){try{localStorage.setItem(themeKey,v);}catch(e){}}
+  const saved=readStoredTheme();if(saved){root.setAttribute('data-theme',saved);}
+  document.getElementById('theme-toggle').addEventListener('click',function(){
+    const next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next);writeStoredTheme(next);
+  });
+  document.getElementById('back-to-top').addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+  const toc=document.getElementById('toc');
+  const sidebar=document.querySelector('.sidebar');
+  const headings=Array.from(document.querySelectorAll('#content h2,#content h3,#content h4'));
+  const usedIds=new Set();
+  headings.forEach(function(h,i){
+    let id=h.id||'heading-'+i;while(usedIds.has(id)){id+='-'+i;}h.id=id;usedIds.add(id);
+    const a=document.createElement('a');a.href='#'+encodeURIComponent(id);a.textContent=h.textContent;
+    a.className='lv'+h.tagName.substring(1);a.dataset.target=id;toc.appendChild(a);
+  });
+  document.getElementById('toc-count').textContent=headings.length+' 项';
+  const links=Array.from(toc.querySelectorAll('a'));let activeId='';
+  function activate(id){if(!id||id===activeId)return;activeId=id;links.forEach(function(l){l.classList.toggle('active',l.dataset.target===id);});
+    const a=toc.querySelector('a.active');if(!a)return;const p=sidebar.getBoundingClientRect();const r=a.getBoundingClientRect();
+    const t=p.top+52,b=p.bottom-12;if(r.top<t)sidebar.scrollBy({top:r.top-t,behavior:'smooth'});else if(r.bottom>b)sidebar.scrollBy({top:r.bottom-b,behavior:'smooth'});
+  }
+  function syncWithScroll(){const m=Math.max(96,window.innerHeight*.2);let c=headings[0];headings.forEach(function(h){if(h.getBoundingClientRect().top<=m)c=h;});if(c)activate(c.id);
+    const mx=document.documentElement.scrollHeight-window.innerHeight;document.getElementById('progress').style.width=(mx>0?window.scrollY/mx*100:0)+'%';
+  }
+  let ticking=false;window.addEventListener('scroll',function(){if(!ticking){requestAnimationFrame(function(){syncWithScroll();ticking=false;});ticking=true;}},{passive:true});
+  window.addEventListener('resize',syncWithScroll,{passive:true});
+  if(window.hljs)window.hljs.highlightAll();
+  syncWithScroll();
+})();
+</script>
+</body>
+</html>

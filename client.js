@@ -193,7 +193,7 @@ window.__ModuleLoader__.load({
         }
         .dv-modal-item:last-child { border-bottom: none; }
         .dv-modal-item:hover { background: var(--dsw-alias-bg-layer-2); }
-        .dv-modal-item.selected { background: var(--dsw-alias-brand-primary-bg); color: var(--dsw-alias-brand-primary); font-weight: 600; }
+        .dv-modal-item.selected { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); color: #fff; font-weight: 600; }
         .dv-modal-item-icon { font-size: 14px; }
         .dv-modal-item-name { flex: 1; }
         .dv-modal-item-count { color: var(--dsw-alias-label-secondary); font-size: 11px; }
@@ -201,7 +201,18 @@ window.__ModuleLoader__.load({
 
         /* ── Three-zone layout ── */
         .dv-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--dsw-alias-bg-base); }
-        .dv-three-zone { display: grid; grid-template-columns: 64px 1fr 1fr; flex: 1; overflow: hidden; }
+        .dv-three-zone { display: flex; flex: 1; overflow: hidden; }
+
+        /* ── Resize handle ── */
+        .dv-resize-handle {
+          width: 4px; cursor: col-resize;
+          background: var(--dsw-alias-border-l1);
+          transition: background 0.15s;
+          flex-shrink: 0;
+        }
+        .dv-resize-handle:hover, .dv-resize-handle.dragging {
+          background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+        }
 
         /* ── Rail toolbar ── */
         .dv-rail {
@@ -219,7 +230,7 @@ window.__ModuleLoader__.load({
           gap: 2px; transition: all 0.12s;
         }
         .dv-rail-btn:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
-        .dv-rail-btn.active { background: var(--dsw-alias-brand-primary); color: #fff; }
+        .dv-rail-btn.active { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); color: var(--dsw-alias-label-primary-foreground); }
         .dv-rail-label { font-size: 8px; font-weight: 600; letter-spacing: 0.02em; line-height: 1; }
         .dv-rail-sep { width: 36px; height: 1px; background: var(--dsw-alias-border-l1); margin: 4px 0; }
         .dv-rail-bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 4px; }
@@ -252,7 +263,7 @@ window.__ModuleLoader__.load({
           border-left: 3px solid transparent;
         }
         .dv-req-header:hover { background: var(--dsw-alias-bg-layer-2); }
-        .dv-req-header.selected { background: var(--dsw-alias-brand-primary-bg); border-left-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); font-weight: 600; }
+        .dv-req-header.selected { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); border-left-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color); color: var(--dsw-alias-label-primary-foreground); font-weight: 600; }
 
         .dv-file-item {
           padding: 3px 12px 3px 44px; font-size: 11px;
@@ -264,8 +275,55 @@ window.__ModuleLoader__.load({
         .dv-meta-item { padding: 3px 12px 3px 44px; font-size: 11px; color: var(--dsw-alias-label-secondary); font-style: italic; }
         .dv-empty-hint { padding: 3px 12px 3px 44px; font-size: 11px; color: var(--dsw-alias-label-secondary); }
 
+        /* ── Analysis status tags ── */
+        .dv-analysis-list { margin: 12px 0; }
+        .dv-analysis-item {
+          padding: 8px 12px;
+          margin: 4px 0;
+          background: var(--dsw-alias-bg-layer-1);
+          border-radius: 6px;
+          border: 1px solid var(--dsw-alias-border-l1);
+        }
+        .dv-analysis-item-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .dv-analysis-item-name {
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--dsw-alias-label-primary);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .dv-analysis-item-path {
+          font-size: 10px;
+          color: var(--dsw-alias-label-secondary);
+          margin-top: 2px;
+        }
+        .dv-analysis-item-error {
+          font-size: 11px;
+          color: var(--dsw-alias-state-error-primary);
+          margin-top: 4px;
+        }
+        .dv-status-tag {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: 600;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .dv-status-tag.pending { background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); }
+        .dv-status-tag.analyzing { background: var(--dsw-alias-state-warn-tertiary); color: var(--dsw-alias-state-warn-label); }
+        .dv-status-tag.completed { background: var(--dsw-alias-state-success-tertiary); color: var(--dsw-alias-state-success-primary); }
+        .dv-status-tag.failed { background: var(--dsw-alias-state-error-secondary); color: var(--dsw-alias-state-error-primary); }
+
         /* ── Preview area ── */
-        .dv-preview-area { display: flex; flex-direction: column; overflow: hidden; }
+        .dv-preview-area { display: flex; flex-direction: column; overflow: hidden; background: var(--dsw-alias-bg-base); }
         .dv-breadcrumb {
           padding: 8px 14px; font-size: 11px;
           color: var(--dsw-alias-label-secondary);
@@ -273,13 +331,13 @@ window.__ModuleLoader__.load({
           border-bottom: 1px solid var(--dsw-alias-border-l1);
           flex-shrink: 0;
         }
-        .dv-preview-body { flex: 1; overflow: auto; padding: 16px; }
+        .dv-preview-body { flex: 1; overflow: auto; padding: 16px; background: var(--dsw-alias-bg-base); }
         .dv-preview-body::-webkit-scrollbar { width: 6px; }
         .dv-preview-body::-webkit-scrollbar-thumb { background: var(--dsw-alias-border-l2); border-radius: 4px; }
-        .dv-preview-iframe { width: 100%; height: 100%; border: none; background: #fff; border-radius: 6px; }
+        .dv-preview-iframe { width: 100%; height: 100%; border: none; background: var(--dsw-alias-bg-base); border-radius: 6px; }
 
         /* ── Right panel (trace / operations) ── */
-        .dv-right-panel { display: flex; flex-direction: column; overflow: hidden; }
+        .dv-right-panel { display: flex; flex-direction: column; overflow: hidden; background: var(--dsw-alias-bg-base); }
         .dv-right-header {
           padding: 10px 14px; font-size: 12px; font-weight: 700;
           color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-bg-layer-1);
@@ -289,7 +347,7 @@ window.__ModuleLoader__.load({
         }
         .dv-right-close { font-size: 11px; color: var(--dsw-alias-label-secondary); cursor: pointer; padding: 2px 8px; border-radius: 4px; }
         .dv-right-close:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
-        .dv-right-body { flex: 1; overflow-y: auto; }
+        .dv-right-body { flex: 1; overflow-y: auto; background: var(--dsw-alias-bg-base); }
         .dv-right-body::-webkit-scrollbar { width: 4px; }
         .dv-right-body::-webkit-scrollbar-thumb { background: var(--dsw-alias-border-l2); border-radius: 4px; }
 
@@ -328,7 +386,7 @@ window.__ModuleLoader__.load({
           color: var(--dsw-alias-label-primary); cursor: pointer;
         }
         .dv-btn:hover { background: var(--dsw-alias-bg-layer-2); }
-        .dv-btn-primary { background: var(--dsw-alias-brand-primary); color: #fff; border-color: var(--dsw-alias-brand-primary); }
+        .dv-btn-primary { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); color: var(--dsw-alias-label-primary-foreground); border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
         .dv-btn-primary:hover { opacity: 0.9; }
         .dv-btn-stack { display: flex; flex-direction: column; gap: 6px; }
         .dv-btn-row { display: flex; gap: 8px; }
@@ -384,7 +442,7 @@ window.__ModuleLoader__.load({
           border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
           color: var(--dsw-alias-label-secondary); cursor: pointer;
         }
-        .dv-search-tag.active { background: var(--dsw-alias-brand-primary); color: #fff; border-color: var(--dsw-alias-brand-primary); }
+        .dv-search-tag.active { background: var(--dsw-alias-brand-primary-new-colorprimary-new-color); color: var(--dsw-alias-label-primary-foreground); border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color); }
         .dv-search-count { padding: 6px 14px; font-size: 11px; color: var(--dsw-alias-label-secondary); border-bottom: 1px solid var(--dsw-alias-border-l1); }
 
         /* ── Search result card ── */
@@ -578,12 +636,17 @@ window.__ModuleLoader__.load({
         ? `${getDocIcon(requirement.type || 'other')} ${name} — ${requirement.date?.slice(5) || ''} ${requirement.title || ''}`
         : name;
 
-      return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100%' } },
+      return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--dsw-alias-bg-base)' } },
         h('div', { className: 'dv-breadcrumb' }, breadcrumbText),
         h('div', { className: 'dv-preview-body' },
           error ? h('span', { className: 'dv-error' }, 'Error: ', error)
             : isHtml
-              ? h('iframe', { srcDoc: text, title: name, className: 'dv-preview-iframe', sandbox: 'allow-scripts' })
+              ? h('iframe', {
+                  srcDoc: `<!DOCTYPE html><html><head><style>body{background:var(--dsw-alias-bg-base,#1e1e1e);color:var(--dsw-alias-label-primary,#fff);}</style></head><body>${text}</body></html>`,
+                  title: name,
+                  className: 'dv-preview-iframe',
+                  sandbox: 'allow-scripts'
+                })
               : isMd
                 ? (markedLoaded && rendered)
                   ? h('div', { ref: markdownRef, className: 'dv-markdown', dangerouslySetInnerHTML: { __html: rendered } })
@@ -671,7 +734,11 @@ window.__ModuleLoader__.load({
                     h('div', {
                       className: `dv-req-header${isReqSelected ? ' selected' : ''}`,
                       onClick: () => {
-                        onSelectReq(req);
+                        if (isReqSelected) {
+                          onSelectReq(null);
+                        } else {
+                          onSelectReq(req);
+                        }
                         toggleReq(req.id);
                       },
                     },
@@ -898,11 +965,13 @@ window.__ModuleLoader__.load({
 
     // ─── AnalyzePanel (4.3, 4.4, 4.14-4.16) ─────────────────────────
     function AnalyzePanel({ workspaceId, selectedReq, onClose }) {
-      const [loading, setLoading] = useState(false);
-      const [analyzingAll, setAnalyzingAll] = useState(false);
       const [error, setError] = useState(null);
       const [success, setSuccess] = useState(null);
       const [aiConfig, setAiConfig] = useState(null);
+      const [analyzing, setAnalyzing] = useState(false);
+      const [analysisMode, setAnalysisMode] = useState(null); // 'single' or 'all'
+      const [previewFiles, setPreviewFiles] = useState([]);
+      const [analysisStatus, setAnalysisStatus] = useState({}); // { reqId: { status, error } }
 
       useEffect(() => {
         fetch(`${ROUTE}/ai-config`)
@@ -911,53 +980,91 @@ window.__ModuleLoader__.load({
           .catch(() => {});
       }, []);
 
-      const handleAnalyze = async () => {
-        if (!selectedReq) return;
-        setLoading(true);
+      const startAnalysis = async (mode) => {
+        setAnalysisMode(mode);
+        setAnalyzing(true);
         setError(null);
         setSuccess(null);
+
+        // Get preview files first
+        const url = mode === 'single' && selectedReq
+          ? `${ROUTE}/analyze-preview?workspaceId=${encodeURIComponent(workspaceId)}&requirementId=${encodeURIComponent(selectedReq.id)}`
+          : `${ROUTE}/analyze-preview?workspaceId=${encodeURIComponent(workspaceId)}`;
+
         try {
-          const res = await fetch(`${ROUTE}/analyze`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceId, requirementId: selectedReq.id }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            setError(data.error || '分析失败');
-          } else {
-            setSuccess(`✅ 分析完成 (${data.elapsed}s)`);
-            if (window.__dvRefreshTree) window.__dvRefreshTree();
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            setPreviewFiles(data.files || []);
+            // Initialize all as pending
+            const status = {};
+            for (const file of data.files) {
+              status[file.id] = { status: 'pending' };
+            }
+            setAnalysisStatus(status);
           }
         } catch (e) {
           setError(String(e));
-        } finally {
-          setLoading(false);
+          setAnalyzing(false);
+          return;
+        }
+
+        // Start streaming analysis
+        const streamUrl = mode === 'single' && selectedReq
+          ? `${ROUTE}/analyze-stream?workspaceId=${encodeURIComponent(workspaceId)}&requirementId=${encodeURIComponent(selectedReq.id)}`
+          : `${ROUTE}/analyze-stream?workspaceId=${encodeURIComponent(workspaceId)}`;
+
+        try {
+          const eventSource = new EventSource(streamUrl);
+
+          eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'start') {
+              setAnalysisStatus(prev => ({
+                ...prev,
+                [data.id]: { status: 'analyzing' }
+              }));
+            } else if (data.type === 'completed') {
+              setAnalysisStatus(prev => ({
+                ...prev,
+                [data.id]: { status: 'completed', elapsed: data.elapsed }
+              }));
+            } else if (data.type === 'failed') {
+              setAnalysisStatus(prev => ({
+                ...prev,
+                [data.id]: { status: 'failed', error: data.error }
+              }));
+            } else if (data.type === 'done') {
+              setSuccess(`${mode === 'single' ? '当前需求' : '全量'}分析完成: ${data.success}/${data.total} 成功 (${data.elapsed}s)`);
+              if (window.__dvRefreshTree) window.__dvRefreshTree();
+              eventSource.close();
+              setAnalyzing(false);
+            } else if (data.type === 'error') {
+              setError(data.error);
+              eventSource.close();
+              setAnalyzing(false);
+            }
+          };
+
+          eventSource.onerror = () => {
+            setError('连接中断');
+            eventSource.close();
+            setAnalyzing(false);
+          };
+        } catch (e) {
+          setError(String(e));
+          setAnalyzing(false);
         }
       };
 
-      const handleAnalyzeAll = async () => {
-        setAnalyzingAll(true);
-        setError(null);
-        setSuccess(null);
-        try {
-          const res = await fetch(`${ROUTE}/analyze-all`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceId }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            setError(data.error || '全量分析失败');
-          } else {
-            setSuccess(`✅ 全量分析完成: ${data.successCount}/${data.total} 成功 (${data.elapsed}s)`);
-            if (window.__dvRefreshTree) window.__dvRefreshTree();
-          }
-        } catch (e) {
-          setError(String(e));
-        } finally {
-          setAnalyzingAll(false);
-        }
+      const handleAnalyzeSingle = () => {
+        if (!selectedReq) return;
+        startAnalysis('single');
+      };
+
+      const handleAnalyzeAll = () => {
+        startAnalysis('all');
       };
 
       return h('div', { className: 'dv-op-panel' },
@@ -989,16 +1096,45 @@ window.__ModuleLoader__.load({
 
         h('div', { className: 'dv-btn-stack', style: { marginBottom: 12 } },
           h('button', {
-            className: 'dv-btn dv-btn-primary',
-            onClick: handleAnalyze,
-            disabled: loading || !selectedReq
-          }, loading ? '分析中...' : '🔄 分析当前需求'),
+            className: `dv-btn${selectedReq ? ' dv-btn-primary' : ''}`,
+            onClick: handleAnalyzeSingle,
+            disabled: analyzing || !selectedReq
+          }, analyzing && analysisMode === 'single' ? '分析中...' : '🔄 分析当前需求'),
           h('button', {
             className: 'dv-btn',
             onClick: handleAnalyzeAll,
-            disabled: analyzingAll
-          }, analyzingAll ? '全量分析中...' : '🔄 全量刷新'),
+            disabled: analyzing
+          }, analyzing && analysisMode === 'all' ? '分析中...' : '🔄 项目全量分析'),
           h('button', { className: 'dv-btn', onClick: onClose }, '关闭')
+        ),
+
+        // Analysis file list with real-time status
+        previewFiles.length > 0 && h('div', { className: 'dv-analysis-list' },
+          h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8 } },
+            `共 ${previewFiles.length} 个文件待分析`),
+          previewFiles.map(file => {
+            const status = analysisStatus[file.id] || { status: 'pending' };
+            return h('div', { key: file.id, className: 'dv-analysis-item' },
+              h('div', { className: 'dv-analysis-item-header' },
+                h('div', { style: { flex: 1, overflow: 'hidden' } },
+                  h('div', { className: 'dv-analysis-item-name' },
+                    file.id,
+                    !file.hasDocs && h('span', { style: { color: 'var(--dsw-alias-label-secondary)', marginLeft: 8 } }, '(无文档)')
+                  ),
+                  h('div', { className: 'dv-analysis-item-path' }, `${file.developer} / ${file.path}`)
+                ),
+                h('span', { className: `dv-status-tag ${status.status}` },
+                  status.status === 'pending' && '⏳ 等待分析',
+                  status.status === 'analyzing' && '🔄 正在分析',
+                  status.status === 'completed' && `✅ 完成${status.elapsed ? ` (${status.elapsed}s)` : ''}`,
+                  status.status === 'failed' && '❌ 失败'
+                )
+              ),
+              status.status === 'failed' && status.error && h('div', { className: 'dv-analysis-item-error' },
+                `错误: ${status.error}`
+              )
+            );
+          })
         ),
 
         error && h('div', { style: { color: 'var(--dsw-alias-state-error-primary)', fontSize: 12, marginBottom: 8 } }, '❌ ', error),
@@ -1301,8 +1437,149 @@ window.__ModuleLoader__.load({
       );
     }
 
+    // ─── Requirement Directory Modal ─────────────────────────────────
+    function RequirementDirModal({ workspaceId, selectedReqId, onSelect, onClose }) {
+      const [tree, setTree] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [expandedDevs, setExpandedDevs] = useState({});
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const res = await fetch(`${ROUTE}/tree?workspaceId=${encodeURIComponent(workspaceId)}&t=${Date.now()}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (!cancelled && data.tree?.developers) {
+                setTree(data.tree);
+                // Default: expand first developer
+                if (data.tree.developers.length > 0) {
+                  setExpandedDevs({ [data.tree.developers[0].name]: true });
+                }
+              }
+            }
+          } catch { /* ignore */ }
+          if (!cancelled) setLoading(false);
+        })();
+        return () => { cancelled = true; };
+      }, [workspaceId]);
+
+      const toggleDev = (devName) => {
+        setExpandedDevs(prev => ({ ...prev, [devName]: !prev[devName] }));
+      };
+
+      return h('div', { className: 'dv-modal-overlay', onClick: onClose },
+        h('div', { className: 'dv-modal', onClick: e => e.stopPropagation(), style: { minWidth: 400 } },
+          h('div', { className: 'dv-modal-title' }, '📂 选择需求目录'),
+          loading
+            ? h('div', { className: 'dv-empty' }, '加载中...')
+            : !tree || tree.developers.length === 0
+              ? h('div', { className: 'dv-empty' }, '暂无需求目录')
+              : h('div', { className: 'dv-modal-list', style: { maxHeight: 400 } },
+                  tree.developers.map(dev =>
+                    h('div', { key: dev.name },
+                      h('div', {
+                        className: 'dv-modal-item',
+                        onClick: () => toggleDev(dev.name),
+                        style: { fontWeight: 600 }
+                      },
+                        h('span', { className: 'dv-modal-item-icon' }, expandedDevs[dev.name] ? '▼' : '▶'),
+                        h('span', { className: 'dv-modal-item-name' }, dev.name),
+                        h('span', { className: 'dv-modal-item-count' }, `(${dev.requirementCount})`)
+                      ),
+                      expandedDevs[dev.name] && dev.requirements.map(req =>
+                        h('div', {
+                          key: req.id,
+                          className: `dv-modal-item${selectedReqId === req.id ? ' selected' : ''}`,
+                          style: { paddingLeft: 32 },
+                          onClick: () => { onSelect(req); onClose(); },
+                        },
+                          h('span', { className: 'dv-modal-item-icon' }, '📂'),
+                          h('span', { className: 'dv-modal-item-name' }, `${req.date.slice(5)} ${req.title}`),
+                          h('span', { className: 'dv-modal-item-count' }, `📄 ${req.fileCount}`)
+                        )
+                      )
+                    )
+                  )
+                ),
+          h('div', { className: 'dv-modal-actions' },
+            h('button', { className: 'dv-btn', onClick: onClose }, '关闭')
+          )
+        )
+      );
+    }
+
+    // ─── Document Dropdown ───────────────────────────────────────────
+    function DocumentDropdown({ workspaceId, selectedReq, onSelectFile, onClose }) {
+      const [tree, setTree] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const res = await fetch(`${ROUTE}/tree?workspaceId=${encodeURIComponent(workspaceId)}&t=${Date.now()}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (!cancelled) setTree(data.tree);
+            }
+          } catch { /* ignore */ }
+          if (!cancelled) setLoading(false);
+        })();
+        return () => { cancelled = true; };
+      }, [workspaceId]);
+
+      // Get all files from all requirements
+      const allFiles = [];
+      if (tree?.developers) {
+        for (const dev of tree.developers) {
+          for (const req of dev.requirements) {
+            for (const file of req.files) {
+              allFiles.push({
+                ...file,
+                reqId: req.id,
+                reqTitle: req.title,
+                reqDate: req.date,
+                developer: dev.name,
+                path: req.path,
+              });
+            }
+          }
+        }
+      }
+
+      return h('div', { className: 'dv-modal-overlay', onClick: onClose },
+        h('div', { className: 'dv-modal', onClick: e => e.stopPropagation(), style: { minWidth: 400 } },
+          h('div', { className: 'dv-modal-title' }, '📄 查看文档'),
+          loading
+            ? h('div', { className: 'dv-empty' }, '加载中...')
+            : allFiles.length === 0
+              ? h('div', { className: 'dv-empty' }, '暂无文档')
+              : h('div', { className: 'dv-modal-list', style: { maxHeight: 400 } },
+                  allFiles.map((file, idx) =>
+                    h('div', {
+                      key: `${file.reqId}-${file.name}-${idx}`,
+                      className: 'dv-modal-item',
+                      onClick: () => { onSelectFile(file); onClose(); },
+                    },
+                      h('span', { className: 'dv-modal-item-icon' }, getDocIcon(file.type)),
+                      h('span', { className: 'dv-modal-item-name' },
+                        h('span', { style: { fontWeight: 600 } }, file.name),
+                        h('span', { style: { color: 'var(--dsw-alias-label-secondary)', fontSize: 11, marginLeft: 8 } },
+                          `${file.developer} / ${file.reqDate.slice(5)} ${file.reqTitle}`)
+                      )
+                    )
+                  )
+                ),
+          h('div', { className: 'dv-modal-actions' },
+            h('button', { className: 'dv-btn', onClick: onClose }, '关闭')
+          )
+        )
+      );
+    }
+
     // ─── Top Bar ─────────────────────────────────────────────────────
-    function TopBar({ docsDir, currentWorkspace, onEditDocsDir, onChangeWorkspace }) {
+    function TopBar({ docsDir, currentWorkspace, currentReq, onEditDocsDir, onChangeWorkspace, onChangeReq }) {
       const [editing, setEditing] = useState(false);
       const [tempDir, setTempDir] = useState(docsDir);
 
@@ -1339,25 +1616,34 @@ window.__ModuleLoader__.load({
               }, docsDir, ' ', h('span', { className: 'dv-topbar-edit' }, '✏️'))
         ),
         h('div', { className: 'dv-topbar-right' },
-          h('span', { className: 'dv-topbar-label' }, '当前工作区:'),
+          h('span', { className: 'dv-topbar-label' }, '工作区:'),
           h('span', {
               className: 'dv-topbar-value',
               onClick: onChangeWorkspace,
               title: '点击切换工作区',
-            }, currentWorkspace?.title || currentWorkspace?.id || '(未选择)')
+            }, currentWorkspace?.title || currentWorkspace?.id || '(未选择)'),
+          h('span', { className: 'dv-topbar-label', style: { marginLeft: 16 } }, '需求目录:'),
+          h('span', {
+              className: 'dv-topbar-value',
+              onClick: onChangeReq,
+              title: '点击选择需求目录',
+            }, currentReq ? `${currentReq.date?.slice(5)} ${currentReq.title}` : '(未选择)')
         )
       );
     }
 
-    // ─── Main Body (three-zone layout) ───────────────────────────────
+    // ─── Main Body (two-zone layout) ───────────────────────────────
     // Covers: 4.1, 4.3-4.5, 4.14-4.19, 4.23-4.25
     function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSelectWorkspace }) {
-      const [activePanel, setActivePanel] = useState(null); // null | 'create' | 'analyze' | 'index' | 'search' | 'requirement' | 'design' | 'cr'
+      const [activePanel, setActivePanel] = useState(null);
       const [selectedReq, setSelectedReq] = useState(null);
       const [selectedFile, setSelectedFile] = useState(null);
       const [totalReqs, setTotalReqs] = useState(0);
-      const [indexStatus, setIndexStatus] = useState(null); // { built: bool, builtAt: string }
+      const [indexStatus, setIndexStatus] = useState(null);
       const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+      const [showReqDirModal, setShowReqDirModal] = useState(false);
+      const [showDocDropdown, setShowDocDropdown] = useState(false);
+      const threeZoneRef = useRef(null);
 
       // Fetch index status
       useEffect(() => {
@@ -1368,6 +1654,21 @@ window.__ModuleLoader__.load({
             if (res.ok) {
               const data = await res.json();
               if (!cancelled) setIndexStatus(data);
+            }
+          } catch { /* ignore */ }
+        })();
+        return () => { cancelled = true; };
+      }, [workspace.id]);
+
+      // Fetch total requirements count
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const res = await fetch(`${ROUTE}/tree?workspaceId=${encodeURIComponent(workspace.id)}&t=${Date.now()}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (!cancelled) setTotalReqs(data.totalRequirements || 0);
             }
           } catch { /* ignore */ }
         })();
@@ -1391,15 +1692,23 @@ window.__ModuleLoader__.load({
       };
 
       const handlePanelClose = () => {
-        setActivePanel(null);
+        // If viewing a file, just close the file preview
+        if (selectedFile) {
+          setSelectedFile(null);
+        } else {
+          // Otherwise close the active panel
+          setActivePanel(null);
+        }
       };
 
       // Rail buttons config (4.1, 4.3-4.5)
       const topButtons = [
         { id: 'create', icon: '📁', label: '新建' },
+        { id: 'view', icon: '📄', label: '查看', isDropdown: true },
+        { id: 'trace', icon: '🔍', label: '追溯' },
         { id: 'analyze', icon: '🔄', label: '分析' },
         { id: 'index', icon: '🔨', label: '索引' },
-        { id: 'search', icon: '🔍', label: '搜索' },
+        { id: 'search', icon: '🔎', label: '搜索' },
       ];
       const templateButtons = [
         { id: 'requirement', icon: '📋', label: '需求' },
@@ -1411,6 +1720,9 @@ window.__ModuleLoader__.load({
         if (!activePanel) return null;
         if (activePanel === 'create') {
           return h(CreateDirForm, { workspaceId: workspace.id, docsDir, onClose: handlePanelClose });
+        }
+        if (activePanel === 'trace') {
+          return h(TracePanel, { selectedReq });
         }
         if (activePanel === 'analyze') {
           return h(AnalyzePanel, { workspaceId: workspace.id, selectedReq, onClose: handlePanelClose });
@@ -1430,37 +1742,65 @@ window.__ModuleLoader__.load({
 
       // Right panel content
       const renderRightContent = () => {
+        // Active panel takes priority
         if (activePanel === 'search') {
           return h(SearchPanel, { workspaceId: workspace.id, onSelectReq: handleSelectReq });
         }
         if (activePanel) {
           return renderPanel();
         }
-        return h(TracePanel, { selectedReq });
+        // Show file preview when no panel is active but a file is selected
+        if (selectedFile) {
+          return h(FilePreview, {
+            workspaceId: workspace.id,
+            relPath: `${selectedFile.path || selectedReq?.path || ''}/${selectedFile.name}`,
+            name: selectedFile.name,
+            requirement: selectedReq ? { title: selectedReq.title, date: selectedReq.date, type: selectedFile.type } : null,
+            onBack: () => setSelectedFile(null),
+          });
+        }
+        // No panel selected - show empty state
+        return h('div', null);
       };
 
       const rightHeaderTitle = activePanel
         ? (activePanel === 'create' ? '📁 创建需求目录'
+          : activePanel === 'trace' ? '🔍 需求追溯'
           : activePanel === 'analyze' ? '🔄 AI 需求分析'
           : activePanel === 'index' ? '🔨 搜索索引管理'
           : activePanel === 'search' ? '🔍 需求搜索'
           : activePanel === 'requirement' ? '📋 生成需求文档模板'
           : activePanel === 'design' ? '📐 生成技术方案模板'
           : '🔍 生成 CR 记录模板')
-        : '🔍 需求追溯';
+        : selectedFile
+          ? `📄 ${selectedFile.name}`
+          : '';
 
       return h('div', { className: 'dv-root' },
         // ── Top bar ──
-        h(TopBar, { docsDir, currentWorkspace: workspace, onEditDocsDir: onConfigChange, onChangeWorkspace: () => setShowWorkspaceModal(true) }),
+        h(TopBar, {
+          docsDir,
+          currentWorkspace: workspace,
+          currentReq: selectedReq,
+          onEditDocsDir: onConfigChange,
+          onChangeWorkspace: () => setShowWorkspaceModal(true),
+          onChangeReq: () => setShowReqDirModal(true),
+        }),
 
-        h('div', { className: 'dv-three-zone' },
+        h('div', { className: 'dv-three-zone', ref: threeZoneRef },
           // ── Left: Rail toolbar ──
           h('div', { className: 'dv-rail' },
             topButtons.map(btn =>
               h('button', {
                 key: btn.id,
                 className: `dv-rail-btn${activePanel === btn.id ? ' active' : ''}`,
-                onClick: () => setActivePanel(activePanel === btn.id ? null : btn.id),
+                onClick: () => {
+                  if (btn.isDropdown) {
+                    setShowDocDropdown(true);
+                  } else {
+                    setActivePanel(activePanel === btn.id ? null : btn.id);
+                  }
+                },
               },
                 h('span', null, btn.icon),
                 h('span', { className: 'dv-rail-label' }, btn.label)
@@ -1480,32 +1820,14 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dv-rail-bottom' })
           ),
 
-          // ── Middle: Doc tree + preview ──
-          h('div', { className: 'dv-doc-panel' },
-            h('div', { className: 'dv-doc-panel-header' }, '📂 文档浏览'),
-            selectedFile
-              ? h(FilePreview, {
-                  workspaceId: workspace.id,
-                  relPath: `${selectedReq?.path || ''}/${selectedFile.name}`,
-                  name: selectedFile.name,
-                  requirement: selectedReq ? { title: selectedReq.title, date: selectedReq.date, type: selectedFile.type } : null,
-                  onBack: () => setSelectedFile(null),
-                })
-              : h(DocTree, {
-                  workspaceId: workspace.id,
-                  docsDir,
-                  selectedReqId: selectedReq?.id || null,
-                  onSelectReq: handleSelectReq,
-                  selectedFile,
-                  onSelectFile: handleSelectFile,
-                })
-          ),
-
-          // ── Right: Trace / Operations ──
-          h('div', { className: 'dv-right-panel' },
+          // ── Right: Trace / Operations / File Preview ──
+          h('div', {
+            className: 'dv-right-panel',
+            style: { flex: 1 }
+          },
             h('div', { className: 'dv-right-header' },
               h('span', null, rightHeaderTitle),
-              activePanel && h('span', { className: 'dv-right-close', onClick: handlePanelClose }, '✕ 关闭')
+              (activePanel || selectedFile) && h('span', { className: 'dv-right-close', onClick: handlePanelClose }, '✕ 关闭')
             ),
             h('div', { className: 'dv-right-body' }, renderRightContent())
           )
@@ -1530,6 +1852,22 @@ window.__ModuleLoader__.load({
           selectedId: workspace.id,
           onSelect: onSelectWorkspace,
           onClose: () => setShowWorkspaceModal(false),
+        }),
+
+        // ── Requirement directory modal ──
+        showReqDirModal && h(RequirementDirModal, {
+          workspaceId: workspace.id,
+          selectedReqId: selectedReq?.id || null,
+          onSelect: handleSelectReq,
+          onClose: () => setShowReqDirModal(false),
+        }),
+
+        // ── Document dropdown ──
+        showDocDropdown && h(DocumentDropdown, {
+          workspaceId: workspace.id,
+          selectedReq,
+          onSelectFile: handleSelectFile,
+          onClose: () => setShowDocDropdown(false),
         })
       );
     }

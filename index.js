@@ -1250,6 +1250,234 @@ export function apply(ctx) {
       },
     },
 
+    // ── GET /analyze-preview ─────────────────────────────────────────
+    {
+      kind: 'exact',
+      path: `${ROUTE}/analyze-preview`,
+      async handler(req, res) {
+        if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+
+        try {
+          const url = new URL(req.url, 'http://localhost');
+          const workspaceId = url.searchParams.get('workspaceId');
+          const requirementId = url.searchParams.get('requirementId');
+
+          if (!workspaceId) {
+            json(res, { error: 'missing workspaceId' }, 400);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { error: 'workspace not found' }, 404);
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          const tree = await buildTree(docsRoot);
+
+          const files = [];
+          
+          if (requirementId) {
+            // Single requirement mode
+            for (const dev of tree.developers) {
+              for (const req of dev.requirements) {
+                if (req.id === requirementId) {
+                  const reqPath = join(docsRoot, req.path);
+                  const docs = await readRequirementDocs(reqPath);
+                  files.push({
+                    id: req.id,
+                    developer: dev.name,
+                    path: req.path,
+                    hasDocs: !!docs,
+                    fileCount: req.fileCount,
+                    hasMeta: req.hasMeta,
+                  });
+                  break;
+                }
+              }
+            }
+          } else {
+            // All requirements mode
+            for (const dev of tree.developers) {
+              for (const req of dev.requirements) {
+                const reqPath = join(docsRoot, req.path);
+                const docs = await readRequirementDocs(reqPath);
+                files.push({
+                  id: req.id,
+                  developer: dev.name,
+                  path: req.path,
+                  hasDocs: !!docs,
+                  fileCount: req.fileCount,
+                  hasMeta: req.hasMeta,
+                });
+              }
+            }
+          }
+
+          json(res, { files });
+        } catch (e) {
+          json(res, { error: e.message }, 500);
+        }
+      },
+    },
+
+    // ── GET /analyze-stream (SSE) ────────────────────────────────────
+    {
+      kind: 'exact',
+      path: `${ROUTE}/analyze-stream`,
+      async handler(req, res) {
+        if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+
+        const url = new URL(req.url, 'http://localhost');
+        const workspaceId = url.searchParams.get('workspaceId');
+        const requirementId = url.searchParams.get('requirementId');
+
+        if (!workspaceId) {
+          json(res, { error: 'missing workspaceId' }, 400);
+          return;
+        }
+
+        if (!llm) {
+          json(res, { error: 'LLM service not available' }, 503);
+          return;
+        }
+
+        const workspaces = registry.list();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+        if (!workspace) {
+          json(res, { error: 'workspace not found' }, 404);
+          return;
+        }
+
+        // Set up SSE
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        });
+
+        const sendEvent = (data) => {
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        const startTime = Date.now();
+
+        try {
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          const tree = await buildTree(docsRoot);
+
+          let total = 0, success = 0, failed = 0;
+
+          if (requirementId) {
+            // Single requirement mode
+            for (const dev of tree.developers) {
+              for (const req of dev.requirements) {
+                if (req.id === requirementId) {
+                  total++;
+                  const reqId = req.id;
+                  const reqStartTime = Date.now();
+
+                  sendEvent({ type: 'start', id: reqId, developer: dev.name, path: req.path });
+
+                  try {
+                    addLog('info', `📄 分析: ${dev.name}/${req.id}`);
+
+                    const docsContent = await readRequirementDocs(join(docsRoot, req.path));
+                    if (!docsContent) {
+                      addLog('warning', `⚠️ 跳过: ${req.id} (无支持的文档文件)`);
+                      failed++;
+                      sendEvent({ type: 'failed', id: reqId, error: '无支持的文档文件' });
+                      continue;
+                    }
+
+                    sendEvent({ type: 'analyzing', id: reqId });
+
+                    const prompt = `需求目录名: ${req.id}\n\n以下是需求文档内容:\n\n${docsContent}`;
+                    const rawResponse = await callLLM(llm, prompt, config);
+                    let meta = parseAIResponse(rawResponse);
+                    meta = validateMeta(meta);
+
+                    const metaPath = join(docsRoot, req.path, '.meta.json');
+                    await writeMetaJson(metaPath, meta);
+
+                    const elapsed = ((Date.now() - reqStartTime) / 1000).toFixed(1);
+                    addLog('success', `✅ 完成: ${req.id} (${elapsed}s)`);
+                    success++;
+                    sendEvent({ type: 'completed', id: reqId, elapsed });
+                  } catch (e) {
+                    const elapsed = ((Date.now() - reqStartTime) / 1000).toFixed(1);
+                    addLog('error', `❌ 失败: ${req.id} (${elapsed}s): ${e.message}`);
+                    failed++;
+                    sendEvent({ type: 'failed', id: reqId, error: e.message });
+                  }
+                  break;
+                }
+              }
+            }
+          } else {
+            // All requirements mode
+            for (const dev of tree.developers) {
+              for (const req of dev.requirements) {
+                total++;
+                const reqId = req.id;
+                const reqStartTime = Date.now();
+
+                sendEvent({ type: 'start', id: reqId, developer: dev.name, path: req.path });
+
+                try {
+                  addLog('info', `📄 [${total}] 分析: ${dev.name}/${req.id}`);
+
+                  const docsContent = await readRequirementDocs(join(docsRoot, req.path));
+                  if (!docsContent) {
+                    addLog('warning', `⚠️ 跳过: ${req.id} (无支持的文档文件)`);
+                    failed++;
+                    sendEvent({ type: 'failed', id: reqId, error: '无支持的文档文件' });
+                    continue;
+                  }
+
+                  sendEvent({ type: 'analyzing', id: reqId });
+
+                  const prompt = `需求目录名: ${req.id}\n\n以下是需求文档内容:\n\n${docsContent}`;
+                  const rawResponse = await callLLM(llm, prompt, config);
+                  let meta = parseAIResponse(rawResponse);
+                  meta = validateMeta(meta);
+
+                  const metaPath = join(docsRoot, req.path, '.meta.json');
+                  await writeMetaJson(metaPath, meta);
+
+                  const elapsed = ((Date.now() - reqStartTime) / 1000).toFixed(1);
+                  addLog('success', `✅ [${total}] 完成: ${req.id} (${elapsed}s)`);
+                  success++;
+                  sendEvent({ type: 'completed', id: reqId, elapsed });
+                } catch (e) {
+                  const elapsed = ((Date.now() - reqStartTime) / 1000).toFixed(1);
+                  addLog('error', `❌ [${total}] 失败: ${req.id} (${elapsed}s): ${e.message}`);
+                  failed++;
+                  sendEvent({ type: 'failed', id: reqId, error: e.message });
+                }
+              }
+            }
+          }
+
+          // Rebuild index after all analysis
+          addLog('info', '🔨 分析完成，重建索引...');
+          const updatedTree = await buildTree(docsRoot);
+          await rebuildIndex(docsRoot, updatedTree);
+
+          const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          sendEvent({ type: 'done', total, success, failed, elapsed: totalElapsed });
+          res.end();
+        } catch (e) {
+          sendEvent({ type: 'error', error: e.message });
+          res.end();
+        }
+      },
+    },
+
     // ── POST /analyze-all (4.4, 5.12) ────────────────────────────────
     {
       kind: 'exact',

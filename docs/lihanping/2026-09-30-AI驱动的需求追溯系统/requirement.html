@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="docs-viewer 插件升级需求文档 v4.0：三区布局、AI 辅助分析、需求追溯系统">
+<title>Docs Viewer 需求追溯系统 — 产品需求文档 v4.0</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Cpath d='M18 14h21l9 9v27H18z' fill='white'/%3E%3Cpath d='M39 14v10h9M25 32h16M25 39h16M25 46h11' fill='none' stroke='%232563eb' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{--text:#1e293b;--muted:#475569;--subtle:#64748b;--surface:#fff;--page:#f8fafc;--soft:#f1f5f9;--border:#e2e8f0;--accent:#2563eb;--accent-soft:#eff6ff;--code:#172033;--code-text:#e2e8f0;--shadow:0 12px 35px rgba(15,23,42,.07);--red:#ef4444;--green:#22c55e;--yellow:#eab308;--blue:#3b82f6;--purple:#8b5cf6;--orange:#f59e0b}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--text:#f1f5f9;--muted:#cbd5e1;--subtle:#94a3b8;--surface:#0f172a;--page:#1e293b;--soft:#334155;--border:#334155;--accent:#60a5fa;--accent-soft:#172554;--code:#020617;--code-text:#e2e8f0;--shadow:none}}
+:root[data-theme="dark"]{--text:#f1f5f9;--muted:#cbd5e1;--subtle:#94a3b8;--surface:#0f172a;--page:#1e293b;--soft:#334155;--border:#334155;--accent:#60a5fa;--accent-soft:#172554;--code:#020617;--code-text:#e2e8f0;--shadow:none}
+*{box-sizing:border-box}html{scroll-behavior:smooth;font-size:16px}body{margin:0;background:var(--page);color:var(--text);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.72;-webkit-font-smoothing:antialiased}
+.progress{position:fixed;z-index:100;top:0;left:0;width:0;height:3px;background:linear-gradient(90deg,#2563eb,#60a5fa)}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border)}
+.hero{width:100%;padding:50px clamp(24px,3vw,56px) 32px}
+.hero-row{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.eyebrow:before{content:"";width:22px;height:2px;background:var(--accent)}
+h1{margin:0 0 12px;font-size:34px;line-height:1.25;letter-spacing:-.025em}
+.hero p{margin:0;color:var(--muted);font-size:16px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.pill{border:1px solid var(--border);border-radius:999px;background:var(--page);color:var(--muted);padding:5px 10px;font-size:12px}
+.theme-button{border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--text);padding:8px 11px;cursor:pointer}
+.stats{width:100%;padding:0 clamp(24px,3vw,56px) 30px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{border:1px solid var(--border);border-radius:9px;background:var(--page);padding:15px 16px}
+.stat-value{margin-bottom:7px;color:var(--accent);font-size:24px;font-weight:700;line-height:1}
+.stat-label{color:var(--subtle);font-size:12px}
+.shell{width:100%;padding:28px clamp(24px,3vw,56px);display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px}
+.sidebar{position:sticky;top:18px;align-self:start;max-height:calc(100vh - 36px);overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:16px}
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.sidebar-title{font-weight:700;font-size:13px;color:var(--text)}
+.toc-count{color:var(--subtle);font-size:11px;background:var(--soft);border-radius:999px;padding:2px 8px}
+.toc a{display:block;padding:5px 8px;border-radius:5px;color:var(--muted);text-decoration:none;font-size:13px;line-height:1.45;transition:background .12s,color .12s}
+.toc a:hover{background:var(--soft);color:var(--text)}
+.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.toc a.lv2{padding-left:8px;font-weight:600}
+.toc a.lv3{padding-left:20px}
+.toc a.lv4{padding-left:34px;font-size:12px}
+.document{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:40px clamp(28px,3vw,48px);box-shadow:var(--shadow)}
+.document>:first-child{margin-top:0}
+h2{margin-top:48px;font-size:24px;font-weight:700;letter-spacing:-.015em;padding-bottom:10px;border-bottom:2px solid var(--border);scroll-margin-top:20px}
+h3{margin-top:32px;font-size:19px;font-weight:600;scroll-margin-top:20px}
+h4{margin-top:24px;font-size:16px;font-weight:600;scroll-margin-top:20px}
+p{margin:14px 0}ul,ol{padding-left:22px;margin:12px 0}li{margin:4px 0}
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+th,td{border:1px solid var(--border);padding:10px 12px;text-align:left}
+th{background:var(--soft);font-weight:600;font-size:13px}
+blockquote{margin:18px 0;padding:14px 18px;border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--muted)}
+pre{margin:18px 0;padding:16px;border-radius:8px;background:var(--code);overflow-x:auto;font-size:13px;line-height:1.55;position:relative}
+pre[data-language]{padding-top:42px}
+pre[data-language]:before{content:attr(data-language);position:absolute;top:10px;right:14px;color:#94a3b8;font:600 11px/1.2 "Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase}
+code{font-family:Consolas,"SFMono-Regular",Menlo,monospace;font-size:.9em}
+.footer{width:100%;padding:28px clamp(24px,3vw,56px);text-align:center;color:var(--subtle);font-size:12px}
+.floating{position:fixed;bottom:24px;right:24px;z-index:90}
+.float-btn{border:1px solid var(--border);border-radius:50%;width:44px;height:44px;background:var(--surface);color:var(--text);font-size:18px;cursor:pointer;box-shadow:var(--shadow)}
+.meta:empty,.stats:empty{display:none}
+.hljs{display:block;overflow-x:auto;color:#e2e8f0}.hljs-comment,.hljs-quote{color:#94a3b8;font-style:italic}.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-section,.hljs-link{color:#c084fc}.hljs-string,.hljs-title,.hljs-name,.hljs-type,.hljs-attribute,.hljs-symbol,.hljs-bullet,.hljs-addition{color:#86efac}.hljs-number,.hljs-meta,.hljs-built_in,.hljs-builtin-name,.hljs-params{color:#fbbf24}.hljs-variable,.hljs-template-variable,.hljs-selector-class,.hljs-selector-id{color:#7dd3fc}.hljs-regexp,.hljs-deletion{color:#fca5a5}.hljs-function .hljs-title,.hljs-title.function_{color:#93c5fd}.hljs-tag{color:#cbd5e1}.hljs-tag .hljs-name,.hljs-tag .hljs-attr{color:#7dd3fc}
+
+/* ── UI Mockup ── */
+.ui-mockup{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:24px 0;background:var(--surface);box-shadow:var(--shadow)}
+.ui-titlebar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--soft);border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
+.ui-titlebar .dots{display:flex;gap:6px}
+.ui-titlebar .dot{width:10px;height:10px;border-radius:50%}
+.dot-r{background:var(--red)}.dot-y{background:var(--yellow)}.dot-g{background:var(--green)}
+.ui-body{padding:0}
+.ui-col-header{padding:10px 14px;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-bottom:1px solid var(--border);letter-spacing:.04em}
+.ui-col-body{padding:0;flex:1;overflow:auto;font-size:13px}
+
+/* Tree */
+.ui-tree-group{padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:6px}
+.ui-tree-group:hover{background:var(--soft)}
+.ui-tree-item{padding:6px 12px 6px 28px;font-size:12px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;border-left:3px solid transparent}
+.ui-tree-item:hover{background:var(--soft)}
+.ui-tree-item.selected{background:var(--accent-soft);border-left-color:var(--accent);color:var(--accent);font-weight:600}
+.ui-tree-sub{padding:4px 12px 4px 44px;font-size:11px;color:var(--subtle);display:flex;align-items:center;gap:4px}
+
+/* Rail */
+.ui-rail{background:var(--soft);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;border-right:1px solid var(--border)}
+.ui-rail-btn{width:48px;height:48px;border:none;border-radius:8px;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all .12s}
+.ui-rail-btn:hover{background:var(--surface);color:var(--text)}
+.ui-rail-btn.active{background:var(--accent-soft);color:var(--accent)}
+.rail-label{font-size:8px;font-weight:600;letter-spacing:.02em;line-height:1}
+.ui-rail-sep{width:32px;height:1px;background:var(--border);margin:4px 0}
+.ui-rail-bottom{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:2px;padding-bottom:4px}
+
+/* Three-col layout */
+.ui-three-col{display:grid;grid-template-columns:64px 1fr 1fr;min-height:520px}
+.ui-col{border-right:1px solid var(--border);display:flex;flex-direction:column}
+.ui-col:last-child{border-right:0}
+
+/* Search */
+.ui-search{padding:12px 14px;border-bottom:1px solid var(--border)}
+.ui-search input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--page);color:var(--text);font-size:13px;outline:none}
+.ui-search input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.ui-search-tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ui-tag{padding:3px 10px;border-radius:999px;font-size:11px;border:1px solid var(--border);background:var(--page);color:var(--muted);cursor:pointer}
+.ui-tag.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Timeline */
+.ui-timeline{padding:16px}
+.ui-tl-item{display:flex;gap:12px;position:relative;padding-bottom:18px}
+.ui-tl-item:not(:last-child):before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--border)}
+.ui-tl-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;border:2px solid var(--border);background:var(--surface)}
+.ui-tl-dot.doc{border-color:var(--blue);background:#eff6ff}
+.ui-tl-dot.design{border-color:var(--purple);background:#f5f3ff}
+.ui-tl-dot.cr{border-color:var(--orange);background:#fffbeb}
+.ui-tl-dot.release{border-color:var(--green);background:#f0fdf4}
+.ui-tl-content{flex:1;min-width:0}
+.ui-tl-date{font-size:11px;color:var(--subtle);font-weight:600}
+.ui-tl-title{font-size:13px;font-weight:600;color:var(--text);margin:2px 0}
+.ui-tl-desc{font-size:12px;color:var(--muted);line-height:1.5}
+
+/* Result card */
+.ui-result-card{border:1px solid var(--border);border-radius:8px;margin:12px 14px;overflow:hidden}
+.ui-result-header{padding:10px 14px;background:var(--soft);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ui-result-badge{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700}
+.ui-result-badge.large{background:#fef3c7;color:#92400e}
+.ui-result-badge.small{background:#dcfce7;color:#166534}
+.ui-result-body{padding:12px 14px}
+.ui-result-meta{font-size:11px;color:var(--subtle);margin-bottom:8px;display:flex;gap:12px}
+.ui-result-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.ui-result-tag{padding:1px 7px;border-radius:999px;font-size:10px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--border)}
+
+/* Field relation */
+.ui-field-rel{margin:12px 14px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.ui-field-rel-head{padding:8px 12px;background:var(--soft);font-size:12px;font-weight:700;border-bottom:1px solid var(--border);font-family:Consolas,monospace;color:var(--accent)}
+.ui-field-rel-item{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ui-field-rel-item:last-child{border-bottom:0}
+.ui-field-rel-item .date{color:var(--subtle);font-size:11px;flex-shrink:0}
+
+/* Buttons & forms */
+.ui-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.ui-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ui-btn.warn{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.ui-btn-stack{display:flex;flex-direction:column;gap:6px}
+.ui-input{width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--page);color:var(--text);margin-bottom:6px}
+
+/* Section & log */
+.ui-section{padding:14px;border-bottom:1px solid var(--border)}
+.ui-section-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ui-log{padding:10px 14px;font-size:11px;font-family:Consolas,"SFMono-Regular",monospace;background:var(--code);color:var(--code-text);max-height:120px;overflow:auto;line-height:1.8}
+.ui-log .ok{color:#86efac}.ui-log .info{color:#7dd3fc}.ui-log .warn{color:#fbbf24}
+
+/* Status bar */
+.ui-statusbar{padding:6px 14px;font-size:11px;color:var(--subtle);border-top:1px solid var(--border);background:var(--soft);display:flex;justify-content:space-between}
+
+/* Requirement card for list */
+.ui-req-card{border:1px solid var(--border);border-radius:8px;margin:10px 14px;overflow:hidden}
+.ui-req-head{padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;border-bottom:1px solid var(--border)}
+.ui-req-body{padding:8px 12px;font-size:11px;color:var(--muted);display:flex;gap:12px}
+.ui-req-status{padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600}
+.ui-req-status.analyzed{background:#dcfce7;color:#166534}
+.ui-req-status.pending{background:#fef3c7;color:#92400e}
+.ui-req-status.empty{background:var(--soft);color:var(--subtle)}
+
+/* Responsive */
+@media(max-width:1100px){.ui-three-col{grid-template-columns:1fr}.ui-col{border-right:0;border-bottom:1px solid var(--border)}.ui-col:last-child{border-bottom:0}}
+@media(max-width:920px){.hero{padding:34px 18px 24px}.hero-row{display:block}.theme-button{margin-top:16px}.stats{padding:0 18px 22px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.shell{display:block;padding:18px}.sidebar{position:relative;top:0;max-height:320px;margin-bottom:16px}.document{padding:28px 22px}h1{font-size:27px}}
+@media print{body{background:#fff}.progress,.sidebar,.theme-button,.floating,.stats,.mermaid-controls{display:none}.topbar{border:0}.hero{padding:0 0 18px}.shell{display:block;max-width:none;padding:0}.document{border:0;box-shadow:none;padding:0}.footer{display:none}pre,table,blockquote,.ui-mockup{break-inside:avoid}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+<header class="topbar">
+  <div class="hero"><div class="hero-row"><div>
+    <div class="eyebrow">Product Requirement Document</div>
+    <h1>Docs Viewer 需求追溯系统</h1>
+    <p>DSH 插件升级：将纯文档浏览器升级为 AI 辅助的需求追溯系统，支持三区布局、手动触发分析、功能点/字段级时间线追溯</p>
+    <div class="meta">
+      <span class="pill">v4.0</span>
+      <span class="pill">2026-09-30</span>
+      <span class="pill">zhangsan</span>
+      <span class="pill">DSH Plugin</span>
+    </div>
+  </div><button class="theme-button" type="button" id="theme-toggle">切换主题</button></div></div>
+  <div class="stats" aria-label="方案总览">
+    <div class="stat"><div class="stat-value">6</div><div class="stat-label">功能模块</div></div>
+    <div class="stat"><div class="stat-value">79</div><div class="stat-label">需求点</div></div>
+    <div class="stat"><div class="stat-value">15</div><div class="stat-label">API 接口</div></div>
+    <div class="stat"><div class="stat-value">ctx.llm</div><div class="stat-label">模型调用</div></div>
+    <div class="stat"><div class="stat-value">P0-P2</div><div class="stat-label">三阶段交付</div></div>
+  </div>
+</header>
+<div class="shell">
+  <aside class="sidebar" aria-label="文档目录"><div class="sidebar-head"><div class="sidebar-title">文档目录</div><span class="toc-count" id="toc-count">0</span></div><nav class="toc" id="toc"></nav></aside>
+  <main class="document" id="content">
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 方案总览                                          -->
+    <!-- ════════════════════════════════════════════════ -->
+    <section id="overview">
+      <h2>方案总览</h2>
+      <p>将现有 <code>docs-viewer</code> 插件从纯文档浏览器升级为 AI 辅助的需求追溯系统。核心设计原则：</p>
+      <ul>
+        <li><strong>不自动执行</strong>：所有 AI 操作通过按钮手动触发</li>
+        <li><strong>三区分离</strong>：操作栏（左）、文档浏览（中）、需求追溯（右）</li>
+        <li><strong>AI 辅助</strong>：通过 DSH <code>ctx.llm</code> 调用模型</li>
+        <li><strong>Prompt 可配置</strong>：分析 Prompt 支持自定义</li>
+      </ul>
+
+      <h3>整体界面布局</h3>
+      <div class="ui-mockup">
+        <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>Docs Viewer 整体布局</span></div>
+        <div class="ui-body">
+          <div class="ui-three-col">
+            <div class="ui-rail">
+              <button class="ui-rail-btn active"><span>📁</span><span class="rail-label">新建</span></button>
+              <button class="ui-rail-btn"><span>🔄</span><span class="rail-label">分析</span></button>
+              <button class="ui-rail-btn"><span>🔨</span><span class="rail-label">索引</span></button>
+              <div class="ui-rail-sep"></div>
+              <button class="ui-rail-btn"><span>📋</span><span class="rail-label">需求</span></button>
+              <button class="ui-rail-btn"><span>📐</span><span class="rail-label">方案</span></button>
+              <button class="ui-rail-btn"><span>🔍</span><span class="rail-label">CR</span></button>
+              <div class="ui-rail-bottom">
+                <button class="ui-rail-btn"><span>📝</span><span class="rail-label">日志</span></button>
+                <button class="ui-rail-btn"><span>⚙️</span><span class="rail-label">设置</span></button>
+              </div>
+            </div>
+            <div class="ui-col">
+              <div class="ui-col-header">文档浏览</div>
+              <div class="ui-col-body">
+                <div class="ui-tree-group">▼ 📁 zhangsan (3)</div>
+                <div class="ui-tree-item selected">📂 09-30 AI驱动需求追溯…</div>
+                <div class="ui-tree-sub">📋 requirement.md</div>
+                <div class="ui-tree-item">📂 09-15 修复用户登录bug</div>
+                <div class="ui-tree-item">📂 08-20 小改动</div>
+                <div class="ui-tree-group">▶ 📁 lisi (1)</div>
+              </div>
+            </div>
+            <div class="ui-col">
+              <div class="ui-col-header">需求追溯</div>
+              <div class="ui-col-body">
+                <div class="ui-search">
+                  <input type="text" placeholder="搜索功能点、字段、标签…" value="TtKolContentKeyContentJob">
+                  <div class="ui-search-tags"><span class="ui-tag active">全部</span><span class="ui-tag">功能点</span><span class="ui-tag">字段</span><span class="ui-tag">标签</span></div>
+                </div>
+                <div class="ui-result-card">
+                  <div class="ui-result-header"><strong style="font-size:13px">09-30 优化TtKolContentKeyContentJob慢任务</strong><span class="ui-result-badge large">大需求</span></div>
+                  <div class="ui-result-body">
+                    <div class="ui-result-meta"><span>👤 zhangsan</span><span>📅 2026-09-30</span><span>📄 4 个文档</span></div>
+                    <div style="font-size:12px;color:var(--muted)">优化慢任务执行时间从30分钟降至5分钟</div>
+                  </div>
+                </div>
+                <div style="padding:8px 14px;font-size:12px;font-weight:700">📅 时间线</div>
+                <div class="ui-timeline" style="padding:0 14px 14px">
+                  <div class="ui-tl-item"><div class="ui-tl-dot doc">📋</div><div class="ui-tl-content"><div class="ui-tl-date">09-30</div><div class="ui-tl-title">需求文档创建</div></div></div>
+                  <div class="ui-tl-item"><div class="ui-tl-dot design">📐</div><div class="ui-tl-content"><div class="ui-tl-date">10-02</div><div class="ui-tl-title">技术方案 v1</div></div></div>
+                  <div class="ui-tl-item"><div class="ui-tl-dot cr">🔍</div><div class="ui-tl-content"><div class="ui-tl-date">10-04</div><div class="ui-tl-title">CR 反馈</div></div></div>
+                  <div class="ui-tl-item"><div class="ui-tl-dot release">✅</div><div class="ui-tl-content"><div class="ui-tl-date">10-06</div><div class="ui-tl-title">CR 通过上线</div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ui-statusbar"><span>docs-viewer v4.0</span><span>docsDir: docs · 12 requirements · index: built</span></div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 模块一：目录规范                                    -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>模块一：需求目录规范</h2>
+
+    <h3>需求点清单</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>描述</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td>1.1</td><td>目录命名规范</td><td>文档目录格式为 <code>docs/{开发者}/{YYYY-MM-DD}-{需求简述}/</code>，从 Git 分支名提取</td><td>P0</td></tr>
+        <tr><td>1.2</td><td>目录自动解析</td><td>插件自动扫描 docs 目录，按开发者分组、按日期倒序排列</td><td>P0</td></tr>
+        <tr><td>1.3</td><td>文档类型识别</td><td>自动识别 .md 和 .html 文件，按文件名推断文档类型（requirement/design/cr）</td><td>P0</td></tr>
+        <tr><td>1.4</td><td>.meta.json 规范</td><td>定义 .meta.json 的 JSON Schema，包含 type/summary/features/fields/tags/timeline 等字段</td><td>P1</td></tr>
+        <tr><td>1.5</td><td>JSON Schema 校验</td><td>AI 生成的 .meta.json 写入前通过 JSON Schema 校验，格式错误时降级为默认值并记录警告日志</td><td>P1</td></tr>
+      </tbody>
+    </table>
+
+    <h3>目录结构示例</h3>
+    <pre data-language="Plaintext"><code class="language-plaintext">docs/                              ← 可配置路径（config.docsDir）
+├── .index/                        ← 索引文件夹（自动管理，加入 .gitignore）
+│   └── search-index.json
+├── zhangsan/
+│   ├── 2026-09-30-优化TtKolContentKeyContentJob慢任务/
+│   │   ├── requirement.md
+│   │   ├── design.md
+│   │   ├── design-v2.md
+│   │   ├── cr-notes.md
+│   │   └── .meta.json
+│   ├── 2026-09-15-修复用户登录bug/
+│   │   └── requirement.md
+│   └── 2026-08-20-小改动/
+│       └── (空目录或不存在)
+├── lisi/
+│   └── 2026-09-25-新增报表功能/
+│       ├── requirement.md
+│       └── design.md</code></pre>
+
+    <h3>Git 分支 → 文档目录映射</h3>
+    <table>
+      <thead><tr><th>Git 分支</th><th>文档目录</th></tr></thead>
+      <tbody>
+        <tr><td><code>feature/zhangsan/2026-09-30-优化慢任务</code></td><td><code>docs/zhangsan/2026-09-30-优化慢任务/</code></td></tr>
+        <tr><td><code>bugfix/zhangsan/2026-09-15-修复登录bug</code></td><td><code>docs/zhangsan/2026-09-15-修复登录bug/</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>可行性分析</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>结论</th><th>DSH API 依据</th><th>风险/备注</th></tr></thead>
+      <tbody>
+        <tr><td>1.1</td><td>目录命名规范</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯约定，无需 DSH API 支持。服务端用 <code>fs.mkdirSync</code> 创建目录</td><td>无</td></tr>
+        <tr><td>1.2</td><td>目录自动解析</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>ctx.workspaceRegistry.list()</code> 获取所有 workspace 路径，<code>fs.readdir()</code> 递归扫描 docs 目录，正则 <code>/^(\d{4}-\d{2}-\d{2})-(.+)$/</code> 解析目录名</td><td>现有插件已实现类似逻辑（FileListPanel），可复用</td></tr>
+        <tr><td>1.3</td><td>文档类型识别</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯文件名匹配，<code>path.extname()</code> 判断扩展名，文件名前缀判断类型（requirement/design/cr）</td><td>无</td></tr>
+        <tr><td>1.4</td><td>.meta.json 规范</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>JSON Schema 定义 + <code>fs.writeFile</code> 写入。可用 <code>ctx.storageDomain</code> 做 schema 验证，但直接 JSON 读写更简单</td><td>建议用 JSON Schema 做运行时校验，防止 AI 输出格式错误</td></tr>
+        <tr><td>1.5</td><td>JSON Schema 校验</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>使用 <code>@deepseek-ai/schemastery</code> 定义 Schema，AI 输出后先校验再写入。校验失败时记录警告日志并写入默认值</td><td>需定义完整的 Schema 结构，包含必填字段和类型约束</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 模块二：文档浏览                                    -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>模块二：文档浏览（纯查阅）</h2>
+
+    <h3>需求点清单</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>描述</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td>2.1</td><td>目录树展示</td><td>按开发者 → 需求 → 文件三级树形结构展示，开发者节点可折叠</td><td>P0</td></tr>
+        <tr><td>2.2</td><td>需求目录信息</td><td>每个需求目录显示日期、标题、文档数量、是否有 .meta.json</td><td>P0</td></tr>
+        <tr><td>2.3</td><td>文档类型图标</td><td>📋 需求文档、📐 技术方案、🔍 CR 记录、📄 其他文档</td><td>P0</td></tr>
+        <tr><td>2.4</td><td>文档预览</td><td>点击文档名在右侧区域打开预览，支持 Markdown 渲染和 HTML 预览</td><td>P0</td></tr>
+        <tr><td>2.5</td><td>Mermaid 图表渲染</td><td>Markdown 中的 mermaid 代码块渲染为流程图，自动适配深色/浅色主题</td><td>P0</td></tr>
+        <tr><td>2.6</td><td>不依赖 AI</td><td>文档浏览功能不依赖 .meta.json 和 AI，纯文件系统扫描即可工作</td><td>P0</td></tr>
+        <tr><td>2.7</td><td>需求目录选中状态</td><td>点击需求目录时高亮显示，作为当前选中需求，影响右侧追溯区和分析面板的目标</td><td>P0</td></tr>
+        <tr><td>2.8</td><td>文档数量统计</td><td>每个需求目录显示文档数量（如 "📄 4 个文档"），帮助快速了解需求完整度</td><td>P0</td></tr>
+        <tr><td>2.9</td><td>文档文件子项展示</td><td>需求目录展开后显示每个文档文件为带图标的子项（如 📋 requirement.md、📐 design.md），点击切换预览内容</td><td>P0</td></tr>
+        <tr><td>2.10</td><td>.meta.json 状态标记</td><td>需求目录树中以灰色斜体显示 ⚙ .meta.json 条目，帮助用户判断该需求是否已完成 AI 分析</td><td>P0</td></tr>
+        <tr><td>2.11</td><td>空目录提示</td><td>没有文档的需求目录显示"（无文档）"灰色提示文字，避免用户误以为目录损坏</td><td>P0</td></tr>
+        <tr><td>2.12</td><td>文档预览面包屑</td><td>文档预览区顶部显示路径面包屑（如 "📋 requirement.md — 09-30 AI驱动需求追溯系统"），明确当前查看的文档位置和所属需求</td><td>P0</td></tr>
+        <tr><td>2.13</td><td>代码块语法高亮</td><td>Markdown 中的代码块使用深色背景 + 语法高亮渲染，自动适配浅色/深色主题</td><td>P1</td></tr>
+        <tr><td>2.14</td><td>开发者节点折叠/展开</td><td>开发者节点支持折叠/展开，用 ▼/▶ 图标指示状态，默认展开第一个开发者节点</td><td>P0</td></tr>
+        <tr><td>2.15</td><td>文档数量徽标</td><td>开发者节点旁显示需求数量徽标（如 "📁 zhangsan (3)"），快速了解每位开发者的需求总数</td><td>P1</td></tr>
+      </tbody>
+    </table>
+
+    <h3>可行性分析</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>结论</th><th>DSH API 依据</th><th>风险/备注</th></tr></thead>
+      <tbody>
+        <tr><td>2.1</td><td>目录树展示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>ctx.slots.inject('sidebar.right.pane.tab')</code> 注册 Tab，<code>React.createElement</code> 渲染树形组件。服务端 <code>fs.readdir()</code> 递归扫描</td><td>现有插件已实现 FileListPanel，可复用组件结构</td></tr>
+        <tr><td>2.2</td><td>需求目录信息</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>fs.stat()</code> 获取文件元信息，<code>fs.readdir()</code> 统计文档数量，<code>fs.existsSync()</code> 检查 .meta.json 是否存在</td><td>无</td></tr>
+        <tr><td>2.3</td><td>文档类型图标</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯前端逻辑，根据文件名前缀匹配图标（requirement→📋, design→📐, cr→🔍）</td><td>无</td></tr>
+        <tr><td>2.4</td><td>文档预览</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>fs.readFile()</code> 读取文件内容，客户端用 <code>marked.js</code> 渲染 Markdown，HTML 文件直接 iframe 嵌入。现有插件已实现 FilePreview 组件</td><td>需注入 marked.js CDN 脚本（现有插件已有 useScript hook）</td></tr>
+        <tr><td>2.5</td><td>Mermaid 图表渲染</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>mermaid.js</code> 渲染图表，<code>MutationObserver</code> 监听 <code>document.documentElement</code> 的 class 变化检测主题切换，自动重新渲染。现有插件已实现此逻辑</td><td>需注入 mermaid.js CDN 脚本</td></tr>
+        <tr><td>2.6</td><td>不依赖 AI</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯文件系统扫描 + 前端渲染，无需调用 <code>ctx.llm</code></td><td>无</td></tr>
+        <tr><td>2.7</td><td>需求目录选中状态</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 管理 <code>selectedReqId</code>，点击目录时更新状态，传递给右侧追溯区和分析面板</td><td>需确保选中状态在切换 Tab 后保持</td></tr>
+        <tr><td>2.8</td><td>文档数量统计</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>fs.readdir()</code> 统计文件数量，返回 <code>fileCount</code> 字段，客户端渲染显示</td><td>无</td></tr>
+        <tr><td>2.9</td><td>文档文件子项展示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>buildTree()</code> 返回每个需求的 files 数组（含 name + type），客户端递归渲染为 <code>ui-tree-sub</code> 子项</td><td>需与 2.3 图标映射配合</td></tr>
+        <tr><td>2.10</td><td>.meta.json 状态标记</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在 tree 节点中返回 <code>hasMeta: boolean</code>，客户端根据此字段渲染灰色斜体 ⚙ 条目</td><td>无</td></tr>
+        <tr><td>2.11</td><td>空目录提示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端返回 files 数组为空时，客户端渲染"（无文档）"占位文字</td><td>无</td></tr>
+        <tr><td>2.12</td><td>文档预览面包屑</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 管理 <code>selectedFile</code>，渲染面包屑组件显示 "图标 文件名 — 需求标题"</td><td>无</td></tr>
+        <tr><td>2.13</td><td>代码块语法高亮</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端注入 <code>highlight.js</code> CDN，Markdown 渲染后调用 <code>hljs.highlightAll()</code>，主题切换时重新高亮</td><td>需注入 highlight.js CDN 脚本</td></tr>
+        <tr><td>2.14</td><td>开发者节点折叠/展开</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 管理每个开发者节点的 <code>expanded</code> 状态，条件渲染子节点</td><td>需确保折叠状态在刷新后保持</td></tr>
+        <tr><td>2.15</td><td>文档数量徽标</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在 tree 的开发者节点中返回 <code>requirementCount</code>，客户端渲染为灰色数字徽标</td><td>无</td></tr>
+      </tbody>
+    </table>
+
+    <h3>UI 设计：文档浏览</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>文档浏览 — 树形目录 + 文档预览</span></div>
+      <div class="ui-body" style="display:grid;grid-template-columns:220px 1fr;min-height:400px">
+        <div style="border-right:1px solid var(--border);font-size:12px">
+          <div class="ui-tree-group">▼ 📁 zhangsan <span style="color:var(--subtle);font-weight:400">(3)</span></div>
+          <div class="ui-tree-item selected">📂 09-30 AI驱动需求追溯…</div>
+          <div class="ui-tree-sub">📋 requirement.md</div>
+          <div class="ui-tree-sub">📐 design.md</div>
+          <div class="ui-tree-sub">📐 design-v2.md</div>
+          <div class="ui-tree-sub">🔍 cr-notes.md</div>
+          <div class="ui-tree-sub" style="color:var(--subtle);font-style:italic">⚙ .meta.json</div>
+          <div class="ui-tree-item">📂 09-15 修复用户登录bug</div>
+          <div class="ui-tree-sub">📋 requirement.md</div>
+          <div class="ui-tree-item">📂 08-20 小改动</div>
+          <div class="ui-tree-sub" style="color:var(--subtle)">（无文档）</div>
+          <div class="ui-tree-group">▶ 📁 lisi <span style="color:var(--subtle);font-weight:400">(1)</span></div>
+          <div class="ui-tree-group">▶ 📁 zhaoliu <span style="color:var(--subtle);font-weight:400">(2)</span></div>
+        </div>
+        <div style="padding:20px;font-size:13px;line-height:1.7">
+          <div style="font-size:11px;color:var(--subtle);margin-bottom:12px">📋 requirement.md — 09-30 AI驱动需求追溯系统</div>
+          <div style="font-size:20px;font-weight:700;margin-bottom:12px">AI 驱动的需求追溯系统</div>
+          <div style="color:var(--muted);font-size:13px;margin-bottom:16px">
+            <strong>## 方案总览</strong><br><br>
+            将现有 docs-viewer 插件从纯文档浏览器升级为 AI 辅助的需求追溯系统…<br><br>
+            <strong>## 模块一：需求目录规范</strong><br>
+            需求目录基于 Git 分支命名规范…
+          </div>
+          <div style="padding:12px;border-radius:6px;background:var(--code);color:var(--code-text);font-family:Consolas,monospace;font-size:12px">
+            <span style="color:#94a3b8">// 目录解析逻辑</span><br>
+            <span style="color:#c084fc">const</span> <span style="color:#7dd3fc">match</span> = dirName.<span style="color:#93c5fd">match</span>(<span style="color:#86efac">/^(\d{4}-\d{2}-\d{2})-(.+)$/</span>);<br>
+            <span style="color:#c084fc">const</span> [, date, title] = match;
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 模块三：需求追溯                                    -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>模块三：需求追溯（搜索+时间线）</h2>
+
+    <h3>需求点清单</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>描述</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td>3.1</td><td>搜索框</td><td>支持输入关键词搜索功能点、字段、标签</td><td>P1</td></tr>
+        <tr><td>3.2</td><td>搜索类型筛选</td><td>可选择搜索范围：全部 / 功能点 / 字段 / 标签</td><td>P1</td></tr>
+        <tr><td>3.3</td><td>搜索结果卡片</td><td>每个匹配需求显示为卡片，包含标题、开发者、日期、文档数、摘要、标签</td><td>P1</td></tr>
+        <tr><td>3.4</td><td>时间线展示</td><td>点击搜索结果展开时间线，按日期排列所有事件节点</td><td>P1</td></tr>
+        <tr><td>3.5</td><td>时间线节点类型</td><td>区分四种节点：📋 需求文档、📐 技术方案、🔍 CR 反馈、✅ 上线发布</td><td>P1</td></tr>
+        <tr><td>3.6</td><td>跨需求字段关联</td><td>搜索字段时展示所有涉及该字段的需求列表，揭示字段变更历史</td><td>P2</td></tr>
+        <tr><td>3.7</td><td>未分析提示</td><td>如果需求没有 .meta.json，显示提示引导用户去操作指引区点击分析</td><td>P1</td></tr>
+        <tr><td>3.8</td><td>AI 辅助模糊查询</td><td>与精确搜索平级的搜索模式，用户可主动选择「精确搜索」或「AI 智能搜索」。AI 搜索调用 ctx.llm 对查询词进行语义理解和模糊匹配，适用于模糊描述、同义词、跨领域关联等场景</td><td>P2</td></tr>
+        <tr><td>3.9</td><td>搜索结果计数</td><td>搜索结果顶部显示匹配数量统计（如 "找到 <strong>3</strong> 个需求涉及此字段"），帮助用户快速了解匹配规模</td><td>P1</td></tr>
+        <tr><td>3.10</td><td>搜索结果源码引用</td><td>搜索结果卡片内显示匹配文档的原文片段引用（如 "requirement.md (L15-L30)" + 引号包裹的原文摘录），帮助用户定位具体上下文</td><td>P1</td></tr>
+        <tr><td>3.11</td><td>需求规模标签</td><td>搜索结果卡片标题旁显示需求规模彩色标签（"大需求" 黄色 / "小需求" 绿色），与 .meta.json 的 type 字段对应</td><td>P1</td></tr>
+        <tr><td>3.12</td><td>AI 搜索加载状态</td><td>AI 智能搜索调用时显示加载动画和提示文字（如 "AI 正在分析语义…"），避免用户误以为页面无响应</td><td>P2</td></tr>
+        <tr><td>3.13</td><td>AI 匹配原因说明</td><td>每个 AI 搜索结果附带 "💡 AI 分析" 原因说明卡片，解释该需求与查询词的语义关联</td><td>P2</td></tr>
+        <tr><td>3.14</td><td>搜索模式切换控件</td><td>搜索栏上方提供精确搜索/AI 智能搜索的 segmented control 切换按钮组，当前选中模式高亮</td><td>P2</td></tr>
+        <tr><td>3.15</td><td>时间线节点描述</td><td>时间线每个节点除标题外，还显示描述文字（如 "并行处理方案，预估优化到 10min"），提供更详细的事件上下文</td><td>P1</td></tr>
+        <tr><td>3.16</td><td>跨需求字段关联面板</td><td>搜索字段类型时，在结果列表顶部显示跨需求关联面板（标题如 "📊 user.email — 跨需求关联"），列出所有涉及该字段的需求及变更说明，按日期倒序排列</td><td>P2</td></tr>
+      </tbody>
+    </table>
+
+    <h3>可行性分析</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>结论</th><th>DSH API 依据</th><th>风险/备注</th></tr></thead>
+      <tbody>
+        <tr><td>3.1</td><td>搜索框</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端 <code>React.createElement('input')</code> 渲染搜索框，<code>fetch('/docs-viewer/search?q=xxx')</code> 调用服务端搜索接口</td><td>需实现服务端搜索接口，基于 <code>search-index.json</code> 全文检索</td></tr>
+        <tr><td>3.2</td><td>搜索类型筛选</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 管理筛选状态，<code>fetch('/docs-viewer/search?type=feature|field|tag')</code> 传递筛选参数</td><td>服务端需在索引中区分 featureIndex、fieldIndex、tagIndex 三类</td></tr>
+        <tr><td>3.3</td><td>搜索结果卡片</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>React.createElement</code> 渲染卡片组件，数据从 <code>search-index.json</code> 的 requirements 数组读取</td><td>无</td></tr>
+        <tr><td>3.4</td><td>时间线展示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端渲染时间线组件，数据从 <code>.meta.json</code> 的 timeline 字段读取，按日期排序</td><td>需确保 AI 生成的 timeline 格式统一</td></tr>
+        <tr><td>3.5</td><td>时间线节点类型</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯前端逻辑，根据 <code>.meta.json</code> 中 timeline 节点的 type 字段（requirement/design/cr/release）渲染不同图标和颜色</td><td>需在 Prompt 中明确要求 AI 输出节点类型</td></tr>
+        <tr><td>3.6</td><td>跨需求字段关联</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端从 <code>search-index.json</code> 的 fieldIndex 读取字段关联的需求 ID 列表，返回所有涉及该字段的需求</td><td>依赖 AI 准确提取字段信息</td></tr>
+        <tr><td>3.7</td><td>未分析提示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在返回需求列表时标记 <code>hasMeta: boolean</code>，客户端根据此字段显示提示 UI</td><td>无</td></tr>
+        <tr><td>3.8</td><td>AI 辅助模糊查询</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>搜索栏增加模式切换（精确/AI），服务端 <code>ctx.llm.stream()</code> 接收查询词 + 索引摘要，AI 返回语义匹配的需求 ID 列表及匹配度评分。客户端调用 <code>POST /docs-viewer/ai-search</code></td><td>需控制 Prompt 长度（只传索引摘要，不传全文），避免超出 context window；AI 搜索响应时间较长（3-10秒），需显示加载状态</td></tr>
+        <tr><td>3.9</td><td>搜索结果计数</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端搜索 API 返回 <code>total</code> 字段，客户端在结果列表顶部渲染 "找到 N 个需求涉及此字段/功能点"</td><td>无</td></tr>
+        <tr><td>3.10</td><td>搜索结果源码引用</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在索引中存储每个需求文档的原文片段（截取关键段落），搜索命中时返回 <code>snippets: [{ file, lines, text }]</code>，客户端渲染为引用块</td><td>需在 rebuild-index 时额外存储文档摘要片段，增加索引体积</td></tr>
+        <tr><td>3.11</td><td>需求规模标签</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端返回的搜索结果中包含 <code>type</code> 字段（large/medium/small），客户端根据 type 渲染不同颜色的 badge（large→黄色"大需求"，small→绿色"小需求"）</td><td>无</td></tr>
+        <tr><td>3.12</td><td>AI 搜索加载状态</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端在发起 AI 搜索请求时设置 <code>loading=true</code>，显示加载动画和提示文字，响应完成后隐藏</td><td>需处理请求超时（建议 30 秒超时后显示重试按钮）</td></tr>
+        <tr><td>3.13</td><td>AI 匹配原因说明</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 AI 搜索返回的每个结果包含 <code>reason</code> 字段，客户端渲染为 "💡 AI 分析" 提示卡片</td><td>依赖 AI 输出质量，Prompt 中需明确要求输出匹配原因</td></tr>
+        <tr><td>3.14</td><td>搜索模式切换控件</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 管理 <code>searchMode</code>（'exact' | 'ai'），渲染 segmented control 按钮组，切换时重新触发搜索</td><td>无</td></tr>
+        <tr><td>3.15</td><td>时间线节点描述</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端返回的 timeline 节点包含 <code>description</code> 字段，客户端在节点标题下方渲染描述文字</td><td>需在 Prompt 中要求 AI 输出 description</td></tr>
+        <tr><td>3.16</td><td>跨需求字段关联面板</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>GET /docs-viewer/fields/:field</code> 从 fieldIndex 查找关联需求列表，返回每个需求的日期、标题、变更说明，客户端渲染为关联面板</td><td>依赖 AI 准确提取字段变更说明</td></tr>
+      </tbody>
+    </table>
+
+    <h3>UI 设计：搜索结果 + 时间线</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>需求追溯 — 搜索 "user.email"，字段类型</span></div>
+      <div class="ui-body" style="min-height:500px">
+        <div class="ui-search">
+          <input type="text" value="user.email">
+          <div class="ui-search-tags"><span class="ui-tag">全部</span><span class="ui-tag">功能点</span><span class="ui-tag active">字段</span><span class="ui-tag">标签</span></div>
+        </div>
+        <div style="padding:10px 14px;font-size:12px;color:var(--subtle)">找到 <strong style="color:var(--text)">3</strong> 个需求涉及此字段</div>
+
+        <div class="ui-field-rel">
+          <div class="ui-field-rel-head">📊 user.email — 跨需求关联</div>
+          <div class="ui-field-rel-item"><span class="date">09-30</span> <strong>优化慢任务</strong> <span style="color:var(--subtle)">— 添加邮箱索引优化查询</span></div>
+          <div class="ui-field-rel-item"><span class="date">07-20</span> <strong>新增内容审核</strong> <span style="color:var(--subtle)">— 新增 email 字段用于通知</span></div>
+          <div class="ui-field-rel-item"><span class="date">06-10</span> <strong>内容表分表</strong> <span style="color:var(--subtle)">— email 字段迁移到分表结构</span></div>
+        </div>
+
+        <div class="ui-result-card">
+          <div class="ui-result-header">
+            <strong style="font-size:13px">09-30 优化TtKolContentKeyContentJob慢任务</strong>
+            <span class="ui-result-badge large">大需求</span>
+          </div>
+          <div class="ui-result-body">
+            <div class="ui-result-meta"><span>👤 zhangsan</span><span>📅 2026-09-30</span><span>📄 4 个文档</span></div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">优化慢任务执行时间从30分钟降至5分钟</div>
+            <div class="ui-result-tags"><span class="ui-result-tag">performance</span><span class="ui-result-tag">job</span><span class="ui-result-tag">optimization</span></div>
+            <div style="font-size:12px;margin-top:10px;padding:8px;background:var(--page);border-radius:4px;border-left:3px solid var(--accent)">
+              <strong>requirement.md</strong> (L15-L30)<br>
+              <span style="color:var(--muted)">"user.email 字段需要添加索引以优化查询性能…"</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:8px 14px;font-size:12px;font-weight:700">📅 时间线</div>
+        <div class="ui-timeline">
+          <div class="ui-tl-item"><div class="ui-tl-dot doc">📋</div><div class="ui-tl-content"><div class="ui-tl-date">09-30</div><div class="ui-tl-title">需求文档创建</div><div class="ui-tl-desc">提出优化需求，当前执行时间 30min+</div></div></div>
+          <div class="ui-tl-item"><div class="ui-tl-dot design">📐</div><div class="ui-tl-content"><div class="ui-tl-date">10-02</div><div class="ui-tl-title">技术方案 v1</div><div class="ui-tl-desc">并行处理方案，预估优化到 10min</div></div></div>
+          <div class="ui-tl-item"><div class="ui-tl-dot cr">🔍</div><div class="ui-tl-content"><div class="ui-tl-date">10-04</div><div class="ui-tl-title">CR 反馈</div><div class="ui-tl-desc">并行方案存在数据一致性问题</div></div></div>
+          <div class="ui-tl-item"><div class="ui-tl-dot design">📐</div><div class="ui-tl-content"><div class="ui-tl-date">10-05</div><div class="ui-tl-title">技术方案 v2</div><div class="ui-tl-desc">改为分批处理 + 索引优化，预估 5min</div></div></div>
+          <div class="ui-tl-item"><div class="ui-tl-dot release">✅</div><div class="ui-tl-content"><div class="ui-tl-date">10-06</div><div class="ui-tl-title">CR 通过上线</div><div class="ui-tl-desc">实际执行时间 4min30s</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>UI 设计：未分析需求提示</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>需求追溯 — 搜索到未分析的需求</span></div>
+      <div class="ui-body" style="min-height:160px">
+        <div class="ui-search">
+          <input type="text" value="登录">
+          <div class="ui-search-tags"><span class="ui-tag active">全部</span><span class="ui-tag">功能点</span><span class="ui-tag">字段</span><span class="ui-tag">标签</span></div>
+        </div>
+        <div class="ui-result-card" style="border-color:var(--orange)">
+          <div class="ui-result-header" style="background:#fffbeb">
+            <strong style="font-size:13px">09-15 修复用户登录bug</strong>
+            <span class="ui-result-badge" style="background:#fef3c7;color:#92400e">未分析</span>
+          </div>
+          <div class="ui-result-body">
+            <div class="ui-result-meta"><span>👤 zhangsan</span><span>📅 2026-09-15</span><span>📄 1 个文档</span></div>
+            <div style="font-size:12px;color:var(--orange);padding:8px 12px;background:#fffbeb;border-radius:6px;border:1px dashed var(--orange)">
+              ⚠️ 该需求尚未分析，无法展示时间线。请前往左侧操作栏点击「🔄 分析」按钮进行分析。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>UI 设计：AI 辅助模糊查询</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>需求追溯 — 搜索模式切换（精确/AI）</span></div>
+      <div class="ui-body" style="min-height:340px">
+        <div class="ui-search">
+          <input type="text" value="报表导出功能优化">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div style="display:flex;gap:4px;border:1px solid var(--border);border-radius:6px;padding:2px;background:var(--page)">
+              <button class="ui-btn" style="padding:4px 12px;font-size:11px;margin:0;border:none;background:var(--accent);color:#fff">精确搜索</button>
+              <button class="ui-btn" style="padding:4px 12px;font-size:11px;margin:0;border:none;background:transparent;color:var(--muted)">AI 智能搜索</button>
+            </div>
+          </div>
+          <div class="ui-search-tags"><span class="ui-tag active">全部</span><span class="ui-tag">功能点</span><span class="ui-tag">字段</span><span class="ui-tag">标签</span></div>
+        </div>
+        <div style="padding:10px 14px">
+          <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">AI 搜索结果 <span style="font-weight:400;color:var(--subtle)">（语义匹配）</span></div>
+          <div class="ui-result-card" style="margin:0 0 8px 0">
+            <div class="ui-result-header">
+              <strong style="font-size:13px">09-25 新增报表功能</strong>
+              <span class="ui-result-badge" style="background:#dbeafe;color:#1e40af">语义匹配 92%</span>
+            </div>
+            <div class="ui-result-body">
+              <div class="ui-result-meta"><span>👤 lisi</span><span>📅 2026-09-25</span><span>📄 2 个文档</span></div>
+              <div style="font-size:12px;color:var(--muted)">新增报表导出功能，支持 Excel/CSV 格式导出</div>
+              <div style="font-size:11px;color:var(--accent);margin-top:6px;padding:6px 10px;background:var(--accent-soft);border-radius:4px">💡 AI 分析：查询词「报表导出功能优化」与该需求的「报表导出功能」高度相关，语义上属于同一功能领域</div>
+            </div>
+          </div>
+          <div class="ui-result-card" style="margin:0">
+            <div class="ui-result-header">
+              <strong style="font-size:13px">09-30 优化慢任务</strong>
+              <span class="ui-result-badge" style="background:#dbeafe;color:#1e40af">语义匹配 67%</span>
+            </div>
+            <div class="ui-result-body">
+              <div class="ui-result-meta"><span>👤 zhangsan</span><span>📅 2026-09-30</span><span>📄 4 个文档</span></div>
+              <div style="font-size:12px;color:var(--muted)">优化慢任务执行时间从30分钟降至5分钟</div>
+              <div style="font-size:11px;color:var(--accent);margin-top:6px;padding:6px 10px;background:var(--accent-soft);border-radius:4px">💡 AI 分析：查询词包含「优化」，该需求涉及性能优化，可能存在关联</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 模块四：操作指引                                    -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>模块四：操作指引（左侧工具栏）</h2>
+
+    <h3>需求点清单</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>描述</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td>4.1</td><td>工具栏布局</td><td>类似 VS Code 活动栏，64px 宽，图标 + 文字标签，位于最左侧</td><td>P0</td></tr>
+        <tr><td>4.2</td><td>创建需求目录</td><td>点击「📁 新建」弹出面板，填写开发者/日期/简述，自动创建目录</td><td>P0</td></tr>
+        <tr><td>4.3</td><td>分析单个需求</td><td>点击「🔄 分析」调用 ctx.llm 分析当前选中需求的文档，生成 .meta.json</td><td>P1</td></tr>
+        <tr><td>4.4</td><td>全量刷新</td><td>点击「🔄 分析」面板中的「全量刷新」按钮，遍历所有需求分析</td><td>P1</td></tr>
+        <tr><td>4.5</td><td>重建索引</td><td>点击「🔨 索引」基于所有 .meta.json 重建搜索索引</td><td>P1</td></tr>
+        <tr><td>4.6</td><td>生成需求文档模板</td><td>点击「📋 需求」在当前需求目录下生成 requirement.md 模板</td><td>P0</td></tr>
+        <tr><td>4.7</td><td>生成技术方案模板</td><td>点击「📐 方案」在当前需求目录下生成 design.md 模板</td><td>P0</td></tr>
+        <tr><td>4.8</td><td>生成 CR 记录模板</td><td>点击「🔍 CR」在当前需求目录下生成 cr-notes.md 模板</td><td>P0</td></tr>
+        <tr><td>4.9</td><td>操作日志</td><td>点击「📝 日志」展示操作历史，包含时间、操作类型、结果</td><td>P2</td></tr>
+        <tr><td>4.10</td><td>设置</td><td>点击「⚙️ 设置」打开配置面板，可修改 docsDir、AI provider/model</td><td>P2</td></tr>
+        <tr><td>4.11</td><td>面板关闭按钮</td><td>每个操作面板右上角提供 "✕ 关闭" 按钮，点击关闭当前面板回到文档浏览状态</td><td>P0</td></tr>
+        <tr><td>4.12</td><td>创建目录路径预览</td><td>创建需求目录表单中，根据用户输入实时预览将要创建的完整路径（如 "→ 将创建目录：docs/zhangsan/2026-10-15-新增报表导出功能/"）</td><td>P0</td></tr>
+        <tr><td>4.13</td><td>创建目录表单提示</td><td>创建面板中显示提示文字"基于 Git 分支命名规范创建需求文档目录"，帮助用户理解命名规则</td><td>P0</td></tr>
+        <tr><td>4.14</td><td>当前选中需求信息</td><td>分析面板顶部显示当前选中需求的摘要信息卡片（标题、开发者、文档数、分析状态），帮助用户确认分析目标</td><td>P1</td></tr>
+        <tr><td>4.15</td><td>分析状态与时间戳</td><td>分析面板中显示需求的分析状态（"已分析" 绿色 / "未分析" 灰色），已分析时显示最后分析时间（如 "10-06 10:30"）</td><td>P1</td></tr>
+        <tr><td>4.16</td><td>分析配置展示</td><td>分析面板中显示当前 AI 分析配置（Provider、Model、Temperature），帮助用户了解分析参数</td><td>P1</td></tr>
+        <tr><td>4.17</td><td>索引状态显示</td><td>索引面板显示当前索引状态（"已构建" 绿色 / "未构建" 灰色），帮助用户了解索引是否可用</td><td>P1</td></tr>
+        <tr><td>4.18</td><td>索引构建时间</td><td>索引面板显示上次构建时间（如 "2026-10-06 10:35"），帮助用户判断索引是否过期</td><td>P1</td></tr>
+        <tr><td>4.19</td><td>索引统计信息</td><td>索引面板以网格形式显示索引统计（需求数、功能点数、字段数、标签数），帮助了解索引规模</td><td>P1</td></tr>
+        <tr><td>4.20</td><td>查看索引文件</td><td>索引面板提供"📄 查看索引文件"按钮，点击后在文档预览区打开 search-index.json 内容</td><td>P2</td></tr>
+        <tr><td>4.21</td><td>模板生成目标信息</td><td>模板生成面板显示目标目录路径和输出文件名（如 "目标目录：docs/zhangsan/… / 输出文件：requirement.md"）</td><td>P0</td></tr>
+        <tr><td>4.22</td><td>模板预览区域</td><td>模板生成面板提供模板内容预览区域，以代码块形式展示即将写入的 Markdown 模板内容</td><td>P0</td></tr>
+        <tr><td>4.23</td><td>AI 生成模板选项</td><td>模板生成面板除"生成静态模板"外，额外提供"📋 用 AI 生成"按钮，调用 ctx.llm 基于目录名和需求上下文智能生成模板内容</td><td>P1</td></tr>
+        <tr><td>4.24</td><td>底部状态栏</td><td>界面底部显示全局状态栏，包含插件版本号（docs-viewer v4.0）、当前 docsDir 路径、需求总数、索引状态（index: built/not built）</td><td>P1</td></tr>
+        <tr><td>4.25</td><td>工具栏按钮激活状态</td><td>左侧 Rail 工具栏中被点击的按钮高亮显示（蓝色背景 + 蓝色文字），表示当前激活的面板</td><td>P0</td></tr>
+        <tr><td>4.26</td><td>操作日志实时追加</td><td>各操作面板底部的日志区域实时追加新日志条目（带时间戳 + 颜色编码：成功绿色、信息蓝色、警告黄色），最新日志在顶部</td><td>P2</td></tr>
+      </tbody>
+    </table>
+
+    <h3>可行性分析</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>结论</th><th>DSH API 依据</th><th>风险/备注</th></tr></thead>
+      <tbody>
+        <tr><td>4.1</td><td>工具栏布局</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 CSS Grid <code>grid-template-columns: 64px 1fr 1fr</code> 实现三区布局，工具栏用 <code>flex-direction: column</code> 垂直排列按钮</td><td>现有插件已有三区布局基础，需重构为工具栏样式</td></tr>
+        <tr><td>4.2</td><td>创建需求目录</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>ctx.webServer.register({ path: '/docs-viewer/create-dir', handler })</code> 注册 POST 接口，<code>fs.mkdirSync</code> 创建目录。客户端用 <code>useState</code> 管理表单状态，<code>fetch</code> 提交</td><td>需处理目录已存在的错误</td></tr>
+        <tr><td>4.3</td><td>分析单个需求</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>ctx.llm.stream({ provider, model, messages })</code> 调用 AI，<code>BlockAssembler</code> 收集响应，<code>fs.writeFile</code> 写入 .meta.json。客户端显示加载状态</td><td>需处理 AI 调用超时、格式错误等异常</td></tr>
+        <tr><td>4.4</td><td>全量刷新</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端遍历所有需求目录，循环调用 <code>ctx.llm.stream()</code>，每个需求独立处理，失败不影响其他</td><td>大量需求时耗时较长，建议显示进度条</td></tr>
+        <tr><td>4.5</td><td>重建索引</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端遍历所有 .meta.json，构建 featureIndex/fieldIndex/tagIndex 倒排索引，<code>fs.writeFile</code> 写入 <code>{docsDir}/.index/search-index.json</code>，docsDir 从 config 读取</td><td>索引文件较大时需考虑性能，可增量更新</td></tr>
+        <tr><td>4.6</td><td>生成需求文档模板</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端预定义模板字符串，<code>fs.writeFile</code> 写入 requirement.md。可选调用 <code>ctx.llm.stream()</code> 基于目录名生成内容</td><td>AI 生成质量不稳定，建议提供静态模板 + AI 增强两种方式</td></tr>
+        <tr><td>4.7</td><td>生成技术方案模板</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>同 4.6，模板写入 design.md</td><td>同上</td></tr>
+        <tr><td>4.8</td><td>生成 CR 记录模板</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>同 4.6，模板写入 cr-notes.md</td><td>同上</td></tr>
+        <tr><td>4.9</td><td>操作日志</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端用 <code>ctx.storageDomain</code> 或 JSON 文件存储操作记录（时间、类型、结果），客户端 <code>fetch('/docs-viewer/logs')</code> 读取并渲染</td><td>需定义日志存储结构和清理策略</td></tr>
+        <tr><td>4.10</td><td>设置</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>readFile('config.json')</code> 读取配置，<code>writeFile</code> 保存配置。客户端用表单组件编辑配置项</td><td>需处理配置热更新（重新加载 LLM provider/model）</td></tr>
+        <tr><td>4.11</td><td>面板关闭按钮</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端每个面板组件的 header 区域渲染 "✕ 关闭" 按钮，点击后 <code>setActivePanel(null)</code> 回到默认状态</td><td>无</td></tr>
+        <tr><td>4.12</td><td>创建目录路径预览</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 监听三个表单字段变化，实时拼接路径字符串渲染到预览区</td><td>纯前端计算，无需服务端交互</td></tr>
+        <tr><td>4.13</td><td>创建目录表单提示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端在表单顶部渲染静态提示文字</td><td>无</td></tr>
+        <tr><td>4.14</td><td>当前选中需求信息</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端从 <code>selectedReqId</code> 状态读取当前需求，从 tree 数据中获取标题/开发者/文档数，从 .meta.json 获取分析状态</td><td>需确保选中需求与面板数据同步</td></tr>
+        <tr><td>4.15</td><td>分析状态与时间戳</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在 tree 数据中返回 <code>metaUpdatedAt</code>（.meta.json 的 mtime），客户端格式化显示</td><td>无</td></tr>
+        <tr><td>4.16</td><td>分析配置展示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端从 <code>GET /docs-viewer/config</code> 读取 ai.provider/ai.model 配置，渲染为只读信息</td><td>无</td></tr>
+        <tr><td>4.17</td><td>索引状态显示</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端 <code>GET /docs-viewer/index-status</code> 返回索引是否存在、构建时间，客户端渲染状态标签</td><td>需新增索引状态 API</td></tr>
+        <tr><td>4.18</td><td>索引构建时间</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端从 <code>search-index.json</code> 的 <code>builtAt</code> 字段读取，返回给客户端格式化显示</td><td>无</td></tr>
+        <tr><td>4.19</td><td>索引统计信息</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在 rebuild-index 响应中返回 stats（requirements/features/fields/tags 数量），客户端缓存并渲染</td><td>无</td></tr>
+        <tr><td>4.20</td><td>查看索引文件</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端点击后调用 <code>GET /docs-viewer/read?path=.index/search-index.json</code>，在文档预览区渲染 JSON 内容</td><td>大文件渲染可能卡顿，建议限制显示大小</td></tr>
+        <tr><td>4.21</td><td>模板生成目标信息</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端从 <code>selectedReqId</code> 拼接目标路径和输出文件名，渲染为信息卡片</td><td>无</td></tr>
+        <tr><td>4.22</td><td>模板预览区域</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端将预定义模板字符串渲染为代码块，使用 <code>&lt;pre&gt;</code> 标签展示</td><td>无</td></tr>
+        <tr><td>4.23</td><td>AI 生成模板选项</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端调用 <code>POST /docs-viewer/generate-template</code>，服务端使用 <code>ctx.llm.stream()</code> 基于目录名生成模板内容</td><td>AI 生成质量不稳定，建议保留静态模板作为备选</td></tr>
+        <tr><td>4.24</td><td>底部状态栏</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端从 tree API 和 config API 获取数据，渲染固定底部状态栏</td><td>无</td></tr>
+        <tr><td>4.25</td><td>工具栏按钮激活状态</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>客户端用 <code>useState</code> 管理 <code>activePanel</code>，渲染时根据状态给对应按钮添加 active class</td><td>无</td></tr>
+        <tr><td>4.26</td><td>操作日志实时追加</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端维护内存日志数组（最近 100 条），每次操作后 push 新条目。客户端轮询或 SSE 获取新日志</td><td>日志仅内存存储，重启后丢失；如需持久化可写入 JSON 文件</td></tr>
+      </tbody>
+    </table>
+
+    <h3>UI 设计：创建需求目录</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>操作指引 — 点击「📁 新建」弹出创建面板</span></div>
+      <div class="ui-body" style="display:grid;grid-template-columns:64px 1fr;min-height:340px">
+        <div class="ui-rail">
+          <button class="ui-rail-btn active"><span>📁</span><span class="rail-label">新建</span></button>
+          <button class="ui-rail-btn"><span>🔄</span><span class="rail-label">分析</span></button>
+          <button class="ui-rail-btn"><span>🔨</span><span class="rail-label">索引</span></button>
+          <div class="ui-rail-sep"></div>
+          <button class="ui-rail-btn"><span>📋</span><span class="rail-label">需求</span></button>
+          <button class="ui-rail-btn"><span>📐</span><span class="rail-label">方案</span></button>
+          <button class="ui-rail-btn"><span>🔍</span><span class="rail-label">CR</span></button>
+          <div class="ui-rail-bottom">
+            <button class="ui-rail-btn"><span>📝</span><span class="rail-label">日志</span></button>
+            <button class="ui-rail-btn"><span>⚙️</span><span class="rail-label">设置</span></button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <div style="padding:12px 16px;background:var(--accent-soft);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:700;color:var(--accent)">📁 创建需求目录</span>
+            <span style="font-size:11px;color:var(--subtle);cursor:pointer">✕ 关闭</span>
+          </div>
+          <div style="padding:16px;flex:1">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">基于 Git 分支命名规范创建需求文档目录</div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:center;margin-bottom:8px">
+              <label style="font-size:12px;font-weight:600">开发者</label>
+              <input class="ui-input" style="margin:0" type="text" value="zhangsan">
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:center;margin-bottom:8px">
+              <label style="font-size:12px;font-weight:600">日期</label>
+              <input class="ui-input" style="margin:0" type="text" value="2026-10-15">
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:center;margin-bottom:12px">
+              <label style="font-size:12px;font-weight:600">需求简述</label>
+              <input class="ui-input" style="margin:0" type="text" value="新增报表导出功能">
+            </div>
+            <div style="padding:8px 12px;background:var(--page);border-radius:6px;font-size:11px;color:var(--subtle);margin-bottom:12px">
+              → 将创建目录：<code style="color:var(--accent)">docs/zhangsan/2026-10-15-新增报表导出功能/</code>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="ui-btn primary">📁 创建目录</button>
+              <button class="ui-btn">取消</button>
+            </div>
+          </div>
+          <div class="ui-log" style="border-top:1px solid var(--border)">
+<span class="info">10:28:30</span> 📁 创建目录: 09-30-AI驱动需求追溯
+<span class="ok">10:25:12</span> ✅ 分析完成: 09-15-修复登录bug
+<span class="info">10:24:58</span> 🔄 开始分析: 09-15-修复登录bug
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>UI 设计：AI 分析需求</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>操作指引 — 点击「🔄 分析」弹出分析面板</span></div>
+      <div class="ui-body" style="display:grid;grid-template-columns:64px 1fr;min-height:360px">
+        <div class="ui-rail">
+          <button class="ui-rail-btn"><span>📁</span><span class="rail-label">新建</span></button>
+          <button class="ui-rail-btn active"><span>🔄</span><span class="rail-label">分析</span></button>
+          <button class="ui-rail-btn"><span>🔨</span><span class="rail-label">索引</span></button>
+          <div class="ui-rail-sep"></div>
+          <button class="ui-rail-btn"><span>📋</span><span class="rail-label">需求</span></button>
+          <button class="ui-rail-btn"><span>📐</span><span class="rail-label">方案</span></button>
+          <button class="ui-rail-btn"><span>🔍</span><span class="rail-label">CR</span></button>
+          <div class="ui-rail-bottom">
+            <button class="ui-rail-btn"><span>📝</span><span class="rail-label">日志</span></button>
+            <button class="ui-rail-btn"><span>⚙️</span><span class="rail-label">设置</span></button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <div style="padding:12px 16px;background:var(--accent-soft);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:700;color:var(--accent)">🔄 AI 分析需求</span>
+            <span style="font-size:11px;color:var(--subtle);cursor:pointer">✕ 关闭</span>
+          </div>
+          <div style="padding:16px;flex:1">
+            <div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;background:var(--page)">
+              <div style="font-size:12px;font-weight:600">当前选中需求</div>
+              <div style="font-size:13px;font-weight:700;margin-top:4px">09-30 AI驱动需求追溯系统</div>
+              <div style="font-size:11px;color:var(--subtle);margin-top:4px">👤 zhangsan · 📄 4 个文档 · 状态：<span style="color:var(--green)">已分析</span> (10-06 10:30)</div>
+            </div>
+            <div class="ui-btn-stack">
+              <button class="ui-btn primary" style="width:100%;justify-content:center">🔄 重新分析此需求 <span style="font-size:10px;opacity:.7">ctx.llm</span></button>
+              <button class="ui-btn warn" style="width:100%;justify-content:center">🔄 全量刷新所有需求 <span style="font-size:10px;opacity:.7">ctx.llm</span></button>
+            </div>
+            <div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--page)">
+              <div style="font-size:11px;font-weight:600;margin-bottom:6px">分析配置</div>
+              <div style="display:grid;grid-template-columns:70px 1fr;gap:6px;font-size:11px">
+                <span style="color:var(--subtle)">Provider</span><span>deepseek</span>
+                <span style="color:var(--subtle)">Model</span><span>deepseek-chat</span>
+                <span style="color:var(--subtle)">Temperature</span><span>0.3</span>
+              </div>
+            </div>
+          </div>
+          <div class="ui-log" style="border-top:1px solid var(--border)">
+<span class="ok">10:30:05</span> ✅ 分析完成: 09-30-AI驱动需求追溯 (3.2s)
+<span class="info">10:29:58</span> 🔄 调用 ctx.llm 分析文档…
+<span class="info">10:29:55</span> 📄 读取 4 个文档 (requirement.md, design.md…)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>UI 设计：索引管理</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>操作指引 — 点击「🔨 索引」弹出索引面板</span></div>
+      <div class="ui-body" style="display:grid;grid-template-columns:64px 1fr;min-height:280px">
+        <div class="ui-rail">
+          <button class="ui-rail-btn"><span>📁</span><span class="rail-label">新建</span></button>
+          <button class="ui-rail-btn"><span>🔄</span><span class="rail-label">分析</span></button>
+          <button class="ui-rail-btn active"><span>🔨</span><span class="rail-label">索引</span></button>
+          <div class="ui-rail-sep"></div>
+          <button class="ui-rail-btn"><span>📋</span><span class="rail-label">需求</span></button>
+          <button class="ui-rail-btn"><span>📐</span><span class="rail-label">方案</span></button>
+          <button class="ui-rail-btn"><span>🔍</span><span class="rail-label">CR</span></button>
+          <div class="ui-rail-bottom">
+            <button class="ui-rail-btn"><span>📝</span><span class="rail-label">日志</span></button>
+            <button class="ui-rail-btn"><span>⚙️</span><span class="rail-label">设置</span></button>
+          </div>
+        </div>
+        <div style="padding:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:12px">🔨 搜索索引管理</div>
+          <div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;background:var(--page)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+              <div>状态：<span style="color:var(--green);font-weight:600">已构建</span></div>
+              <div>构建时间：2026-10-06 10:35</div>
+              <div>需求数：<strong>12</strong></div>
+              <div>功能点：<strong>45</strong></div>
+              <div>字段数：<strong>28</strong></div>
+              <div>标签数：<strong>19</strong></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="ui-btn primary" style="justify-content:center">🔨 重建索引</button>
+            <button class="ui-btn" style="justify-content:center">📄 查看索引文件</button>
+          </div>
+          <div class="ui-log" style="margin-top:12px;border-top:1px solid var(--border)">
+<span class="ok">10:35:12</span> 🔨 索引重建完成 (12 req, 45 features, 28 fields)
+<span class="info">10:35:10</span> 📊 构建 featureIndex…
+<span class="info">10:35:09</span> 📊 读取 12 个 .meta.json…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>UI 设计：文档模板生成</h3>
+    <div class="ui-mockup">
+      <div class="ui-titlebar"><div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div><span>操作指引 — 点击「📋 需求」生成需求文档模板</span></div>
+      <div class="ui-body" style="display:grid;grid-template-columns:64px 1fr;min-height:300px">
+        <div class="ui-rail">
+          <button class="ui-rail-btn"><span>📁</span><span class="rail-label">新建</span></button>
+          <button class="ui-rail-btn"><span>🔄</span><span class="rail-label">分析</span></button>
+          <button class="ui-rail-btn"><span>🔨</span><span class="rail-label">索引</span></button>
+          <div class="ui-rail-sep"></div>
+          <button class="ui-rail-btn active"><span>📋</span><span class="rail-label">需求</span></button>
+          <button class="ui-rail-btn"><span>📐</span><span class="rail-label">方案</span></button>
+          <button class="ui-rail-btn"><span>🔍</span><span class="rail-label">CR</span></button>
+          <div class="ui-rail-bottom">
+            <button class="ui-rail-btn"><span>📝</span><span class="rail-label">日志</span></button>
+            <button class="ui-rail-btn"><span>⚙️</span><span class="rail-label">设置</span></button>
+          </div>
+        </div>
+        <div style="padding:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:12px">📋 生成需求文档模板</div>
+          <div style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:12px;background:var(--page);font-size:12px">
+            <div>目标目录：<code style="color:var(--accent)">docs/zhangsan/2026-10-15-新增报表导出功能/</code></div>
+            <div style="margin-top:4px">输出文件：<code>requirement.md</code></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="ui-btn primary">📋 生成模板</button>
+            <button class="ui-btn">📋 用 AI 生成 <span style="font-size:10px;color:var(--accent)">ctx.llm</span></button>
+          </div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">模板预览</div>
+          <pre data-language="Markdown" style="margin:0;font-size:12px"><code class="language-markdown"># 需求文档
+
+## 背景
+描述需求的背景和原因。
+
+## 目标
+明确需求要达成的目标。
+
+## 功能点
+- [ ] 功能点 1
+- [ ] 功能点 2
+
+## 涉及字段
+| 表名 | 字段名 | 变更类型 | 说明 |
+|------|--------|---------|------|
+|      |        |         |      |
+
+## 验收标准
+- [ ] 标准 1
+- [ ] 标准 2</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 模块五：AI 分析引擎                                -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>模块五：AI 分析引擎</h2>
+
+    <h3>需求点清单</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>描述</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td>5.1</td><td>ctx.llm 集成</td><td>通过 DSH <code>ctx.llm.stream()</code> 调用模型，inject 声明依赖 llm 服务</td><td>P1</td></tr>
+        <tr><td>5.2</td><td>文档读取</td><td>分析前读取需求目录下所有 .md 文件内容，作为 Prompt 输入</td><td>P1</td></tr>
+        <tr><td>5.3</td><td>结构化输出</td><td>要求模型返回 JSON 格式，提取 type/summary/features/fields/tags/timeline</td><td>P1</td></tr>
+        <tr><td>5.4</td><td>JSON 解析容错</td><td>支持从 ```json 代码块提取、直接解析、降级默认值三级容错</td><td>P1</td></tr>
+        <tr><td>5.5</td><td>.meta.json 写入</td><td>分析结果写入需求目录下的 .meta.json 文件</td><td>P1</td></tr>
+        <tr><td>5.6</td><td>Prompt 可配置</td><td>分析 Prompt 支持在 config.json 的 ai.prompts.analyze 中自定义</td><td>P1</td></tr>
+        <tr><td>5.7</td><td>Provider/Model 可配置</td><td>config.json 中可配置 ai.provider 和 ai.model</td><td>P1</td></tr>
+        <tr><td>5.8</td><td>分析进度日志</td><td>分析过程中实时记录进度日志（如 "📄 读取 4 个文档…"、"🔄 调用 ctx.llm 分析文档…"），显示在面板底部日志区域</td><td>P1</td></tr>
+        <tr><td>5.9</td><td>分析耗时统计</td><td>分析完成后在日志中显示总耗时（如 "✅ 分析完成: 09-30-AI驱动需求追溯 (3.2s)"）</td><td>P1</td></tr>
+        <tr><td>5.10</td><td>文档截断保护</td><td>当需求文档总内容超过 30000 字符时自动截断，并在末尾追加 "[内容已截断]" 提示，防止超出 context window</td><td>P1</td></tr>
+        <tr><td>5.11</td><td>分析错误处理</td><td>AI 调用失败时（网络超时、模型错误等）捕获异常，在日志中显示错误信息，不中断其他操作</td><td>P1</td></tr>
+        <tr><td>5.12</td><td>全量分析进度</td><td>全量刷新时逐个处理需求，每个需求完成后记录日志，失败的需求跳过并记录错误，不影响后续需求</td><td>P1</td></tr>
+        <tr><td>5.13</td><td>max-tokens 截断警告</td><td>当 AI 输出因 max-tokens 限制被截断时，在日志中记录警告信息，提示用户可能需要调整 maxTokens 配置</td><td>P2</td></tr>
+      </tbody>
+    </table>
+
+    <h3>可行性分析</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>结论</th><th>DSH API 依据</th><th>风险/备注</th></tr></thead>
+      <tbody>
+        <tr><td>5.1</td><td>ctx.llm 集成</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>inject: ['llm']</code> 声明依赖，<code>ctx.llm.stream({ provider, model, messages, temperature, maxTokens })</code> 调用模型。返回 <code>AsyncIterable&lt;StreamChunk&gt;</code>，用 <code>BlockAssembler</code> 收集文本块</td><td>需处理 <code>finish.reason === 'error'</code> 和 <code>'max-tokens'</code> 两种异常结束</td></tr>
+        <tr><td>5.2</td><td>文档读取</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>ctx.workspaceRegistry.list()</code> 获取 workspace 路径，<code>fs.readdir()</code> 扫描目录，<code>fs.readFile()</code> 读取 .md 文件内容拼接为 Prompt</td><td>大文档可能超出 context window，需截断或摘要</td></tr>
+        <tr><td>5.3</td><td>结构化输出</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>Prompt 中明确要求返回 JSON，<code>maxTokens: 4000</code> 确保输出完整。用 <code>BlockAssembler</code> 收集文本后 <code>JSON.parse</code></td><td>AI 输出格式不稳定，需三级容错（见 5.4）</td></tr>
+        <tr><td>5.4</td><td>JSON 解析容错</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯代码逻辑：1) 尝试 <code>JSON.parse</code> 直接解析；2) 正则提取 <code>```json...```</code> 代码块；3) 降级返回默认值 <code>{ type: 'unknown', summary: '', features: [], fields: [], tags: [], timeline: [] }</code></td><td>建议加 JSON Schema 校验（可用 <code>@deepseek-ai/schemastery</code>）</td></tr>
+        <tr><td>5.5</td><td>.meta.json 写入</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>fs.writeFile(join(reqDir, '.meta.json'), JSON.stringify(meta, null, 2))</code></td><td>需原子写入（先写临时文件再 rename），防止写入中断导致文件损坏</td></tr>
+        <tr><td>5.6</td><td>Prompt 可配置</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>readFile('config.json')</code> 读取 <code>ai.prompts.analyze</code> 字段，作为 system prompt 传入 <code>ctx.llm.stream()</code></td><td>需内置默认 Prompt，用户未配置时使用默认值</td></tr>
+        <tr><td>5.7</td><td>Provider/Model 可配置</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>config.json</code> 中 <code>ai.provider</code> 和 <code>ai.model</code> 传入 <code>ctx.llm.stream()</code> 的 provider/model 参数</td><td>需校验 provider/model 是否存在，可用 <code>ctx.llm.listProviders()</code> 和 <code>ctx.llm.listModels(provider)</code></td></tr>
+        <tr><td>5.8</td><td>分析进度日志</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在 analyze 函数中每个关键步骤调用 <code>logProgress(message)</code>，将日志推送到内存数组，客户端通过 SSE 或轮询获取</td><td>需定义日志传输机制（SSE 或短轮询）</td></tr>
+        <tr><td>5.9</td><td>分析耗时统计</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在 analyze 函数开始处记录 <code>startTime = Date.now()</code>，完成后计算 <code>elapsed = (Date.now() - startTime) / 1000</code>，写入日志</td><td>无</td></tr>
+        <tr><td>5.10</td><td>文档截断保护</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端在拼接文档内容后检查 <code>docsContent.length > 30000</code>，超出时 <code>docsContent = docsContent.slice(0, 30000) + '\n\n[内容已截断]'</code></td><td>截断阈值 30000 可配置</td></tr>
+        <tr><td>5.11</td><td>分析错误处理</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端用 <code>try-catch</code> 包裹 <code>ctx.llm.stream()</code> 调用，捕获异常后返回 <code>{ error: message }</code>，客户端在日志中显示红色错误信息</td><td>需区分网络错误、模型错误、解析错误</td></tr>
+        <tr><td>5.12</td><td>全量分析进度</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端遍历所有需求，循环调用 analyze 函数，每个完成后记录日志，失败时 <code>console.error</code> 并 continue</td><td>大量需求时耗时较长，建议客户端显示进度条</td></tr>
+        <tr><td>5.13</td><td>max-tokens 截断警告</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>服务端检查 <code>finishReason?.kind === 'max-tokens'</code>，为真时记录警告日志 "⚠️ AI 输出被截断，建议增加 maxTokens 配置"</td><td>无</td></tr>
+      </tbody>
+    </table>
+
+    <h3>调用方式</h3>
+    <pre data-language="JavaScript"><code class="language-javascript">// index.js
+export const inject = ['workspaceRegistry', 'webServer', 'llm'];
+
+export function apply(ctx) {
+  const llm = ctx.llm;
+
+  async function callLLM(prompt) {
+    const stream = llm.stream({
+      provider: config.ai?.provider || 'deepseek',
+      model: config.ai?.model || 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      maxTokens: 4000,
+    });
+    let content = '';
+    for await (const chunk of stream) {
+      if (chunk.type === 'delta' && chunk.delta?.type === 'text') {
+        content += chunk.delta.text;
+      }
+    }
+    return content;
+  }
+}</code></pre>
+
+    <h3>Prompt 配置</h3>
+    <pre data-language="JSON"><code class="language-json">{
+  "docsDir": "docs",
+  "ai": {
+    "enabled": true,
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "prompts": {
+      "analyze": "自定义分析 Prompt...",
+      "template_requirement": "自定义需求文档模板 Prompt...",
+      "template_design": "自定义技术方案模板 Prompt..."
+    }
+  }
+}</code></pre>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 模块六：索引存储                                    -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>模块六：索引存储</h2>
+
+    <h3>需求点清单</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>描述</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td>6.1</td><td>索引文件位置</td><td>存储在各项目 docs 目录下的 <code>.index/search-index.json</code>，与需求文档分离管理</td><td>P1</td></tr>
+        <tr><td>6.2</td><td>索引结构</td><td>包含 requirements 列表 + featureIndex + fieldIndex + tagIndex 三个倒排索引</td><td>P1</td></tr>
+        <tr><td>6.3</td><td>增量更新</td><td>分析单个需求时只更新该需求的索引条目</td><td>P1</td></tr>
+        <tr><td>6.4</td><td>全量重建</td><td>点击重建索引按钮时，遍历所有 .meta.json 重建整个索引</td><td>P1</td></tr>
+      </tbody>
+    </table>
+
+    <h3>可行性分析</h3>
+    <table>
+      <thead><tr><th>#</th><th>需求点</th><th>结论</th><th>DSH API 依据</th><th>风险/备注</th></tr></thead>
+      <tbody>
+        <tr><td>6.1</td><td>索引文件位置</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td><code>fs.writeFile(join(docsDir, '.index', 'search-index.json'), ...)</code> 写入项目 docs 目录下的 .index 子目录。<code>docsDir</code> 从插件配置读取，支持多项目</td><td>需在 .gitignore 中添加 <code>.index/</code> 排除索引文件</td></tr>
+        <tr><td>6.2</td><td>索引结构</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>纯数据结构设计，<code>JSON.stringify</code> 序列化。包含 requirements 数组 + featureIndex/fieldIndex/tagIndex 三个 Map 对象</td><td>Map 需序列化为普通对象 <code>{ key: [reqIds] }</code> 才能 JSON 存储</td></tr>
+        <tr><td>6.3</td><td>增量更新</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>分析单个需求后，读取现有索引，删除该需求的旧条目，插入新条目，重新写入文件</td><td>需加文件锁或原子写入，防止并发更新冲突</td></tr>
+        <tr><td>6.4</td><td>全量重建</td><td style="color:var(--green);font-weight:700">✅ 可行</td><td>遍历所有 .meta.json，重新构建完整索引对象，<code>fs.writeFile</code> 覆盖写入</td><td>大量需求时耗时较长，建议显示进度</td></tr>
+      </tbody>
+    </table>
+
+    <h3>索引结构</h3>
+    <pre data-language="JSON"><code class="language-json">{
+  "version": 1,
+  "builtAt": "2026-09-30T10:30:00Z",
+  "requirements": [
+    {
+      "id": "2026-09-30-优化慢任务",
+      "developer": "zhangsan",
+      "date": "2026-09-30",
+      "title": "优化慢任务",
+      "type": "large",
+      "features": ["TtKolContentKeyContentJob", "任务调度优化"],
+      "fields": ["tt_kol_content.key_content"],
+      "tags": ["performance", "job"]
+    }
+  ],
+  "featureIndex": {
+    "TtKolContentKeyContentJob": ["2026-09-30-优化慢任务"]
+  },
+  "fieldIndex": {
+    "tt_kol_content.key_content": ["2026-09-30-优化慢任务"]
+  },
+  "tagIndex": {
+    "performance": ["2026-09-30-优化慢任务"]
+  }
+}</code></pre>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- API 设计                                          -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>API 设计</h2>
+    <table>
+      <thead><tr><th>方法</th><th>路径</th><th>描述</th><th>所属模块</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/docs-viewer/tree</code></td><td>获取文档目录树</td><td>文档浏览</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/read</code></td><td>读取文档内容</td><td>文档浏览</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/search?q=&amp;type=</code></td><td>搜索需求</td><td>需求追溯</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/requirements/:id</code></td><td>获取需求详情（含时间线）</td><td>需求追溯</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/fields/:field</code></td><td>查询字段关联</td><td>需求追溯</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/create-dir</code></td><td>创建需求目录</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/analyze</code></td><td>分析单个需求</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/analyze-all</code></td><td>全量分析所有需求</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/rebuild-index</code></td><td>重建搜索索引</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/ai-search</code></td><td>AI 辅助模糊查询（语义匹配）</td><td>需求追溯</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/index-status</code></td><td>获取索引状态（是否构建、构建时间、统计信息）</td><td>操作指引</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/logs</code></td><td>获取操作日志列表</td><td>操作指引</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/generate-template</code></td><td>AI 生成文档模板（需求/方案/CR）</td><td>操作指引</td></tr>
+        <tr><td>GET</td><td><code>/docs-viewer/config</code></td><td>获取配置</td><td>设置</td></tr>
+        <tr><td>POST</td><td><code>/docs-viewer/config</code></td><td>保存配置</td><td>设置</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 实施计划                                          -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>实施计划</h2>
+    <table>
+      <thead><tr><th>阶段</th><th>内容</th><th>工期</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr><td><strong>P0 — MVP</strong></td><td>目录规范 + 文档浏览 + 创建目录 + 文档模板</td><td>3 天</td><td>🔴 必须</td></tr>
+        <tr><td><strong>P1 — AI</strong></td><td>AI 分析引擎 + 搜索索引 + 需求追溯</td><td>4 天</td><td>🟡 重要</td></tr>
+        <tr><td><strong>P2 — 增强</strong></td><td>字段关联 + 操作日志 + 设置面板</td><td>1.5 天</td><td>🟢 可选</td></tr>
+      </tbody>
+    </table>
+
+    <h3>P0 详细任务</h3>
+    <table>
+      <thead><tr><th>任务</th><th>描述</th><th>工期</th></tr></thead>
+      <tbody>
+        <tr><td>T1</td><td>服务端：目录扫描 API（GET /tree）</td><td>0.5 天</td></tr>
+        <tr><td>T2</td><td>客户端：DocTree 组件（三级树形结构）</td><td>1 天</td></tr>
+        <tr><td>T3</td><td>客户端：三区布局框架 + 左侧工具栏</td><td>0.5 天</td></tr>
+        <tr><td>T4</td><td>服务端：创建目录 API（POST /create-dir）</td><td>0.5 天</td></tr>
+        <tr><td>T5</td><td>客户端：CreateDirForm 组件</td><td>0.5 天</td></tr>
+        <tr><td>T6</td><td>服务端：文档模板生成 API</td><td>0.5 天</td></tr>
+        <tr><td>T7</td><td>客户端：文档预览组件（Markdown + Mermaid）</td><td>0.5 天</td></tr>
+      </tbody>
+    </table>
+
+    <h3>P1 详细任务</h3>
+    <table>
+      <thead><tr><th>任务</th><th>描述</th><th>工期</th></tr></thead>
+      <tbody>
+        <tr><td>T8</td><td>服务端：AI 分析引擎（ctx.llm 集成 + Prompt 管理）</td><td>1 天</td></tr>
+        <tr><td>T9</td><td>服务端：分析 API + .meta.json 读写</td><td>0.5 天</td></tr>
+        <tr><td>T10</td><td>服务端：搜索索引构建 + 搜索 API</td><td>1 天</td></tr>
+        <tr><td>T11</td><td>客户端：SearchBar + SearchResults 组件</td><td>1 天</td></tr>
+        <tr><td>T12</td><td>客户端：TimelineView 组件</td><td>0.5 天</td></tr>
+      </tbody>
+    </table>
+
+    <h3>P2 详细任务</h3>
+    <table>
+      <thead><tr><th>任务</th><th>描述</th><th>工期</th></tr></thead>
+      <tbody>
+        <tr><td>T13</td><td>服务端：字段关联查询 API</td><td>0.5 天</td></tr>
+        <tr><td>T14</td><td>客户端：FieldRelations 组件</td><td>0.5 天</td></tr>
+        <tr><td>T15</td><td>客户端：OperationLog 组件</td><td>0.5 天</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- 变更记录                                          -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2>变更记录</h2>
+    <table>
+      <thead><tr><th>版本</th><th>日期</th><th>变更内容</th></tr></thead>
+      <tbody>
+        <tr><td>v1.0</td><td>2026-09-30</td><td>初始版本（自动化方案）</td></tr>
+        <tr><td>v2.0</td><td>2026-09-30</td><td>重构为三区布局，所有操作手动触发；确定 ctx.llm 调用方案和索引存储方案</td></tr>
+        <tr><td>v3.0</td><td>2026-09-30</td><td>细化 28 个需求点，拆分为 6 个功能模块，每个模块配 UI 设计图</td></tr>
+        <tr><td>v4.0</td><td>2026-09-30</td><td>新增可行性分析；根据风险备注新增需求点（JSON Schema 校验、进度显示、错误处理、原子写入、文件锁等）；索引存储改为 docs/.index/；新增 AI 辅助模糊查询；移除真实人名使用化名</td></tr>
+        <tr><td>v5.0</td><td>2026-09-30</td><td>根据 UI 设计图补充遗漏需求点：模块二新增 2.9-2.15（文档文件子项、.meta.json 标记、空目录提示、面包屑、代码高亮、折叠状态、数量徽标）；模块三新增 3.9-3.16（搜索计数、源码引用、规模标签、AI 加载状态、匹配原因、模式切换、时间线描述、字段关联面板）；模块四新增 4.11-4.26（面板关闭、路径预览、表单提示、选中需求信息、分析状态、配置展示、索引状态/时间/统计、查看索引、模板信息/预览/AI 生成、状态栏、工具栏激活、日志追加）；模块五新增 5.8-5.13（进度日志、耗时统计、截断保护、错误处理、全量进度、截断警告）；API 新增 index-status/logs/generate-template；需求点总数从 40 增至 79，API 从 10 增至 15</td></tr>
+      </tbody>
+    </table>
+
+  </main>
+</div>
+<div class="floating"><button class="float-btn" type="button" id="back-to-top" title="返回顶部" aria-label="返回顶部">↑</button></div>
+<footer class="footer">Docs Viewer 需求追溯系统 · v4.0 · 2026-09-30</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.12.0/highlight.min.js"></script>
+<script>
+(function(){
+  const root=document.documentElement;
+  const themeKey='technical-solution-theme';
+  function readStoredTheme(){try{return localStorage.getItem(themeKey);}catch(e){return null;}}
+  function writeStoredTheme(v){try{localStorage.setItem(themeKey,v);}catch(e){}}
+  const saved=readStoredTheme();if(saved){root.setAttribute('data-theme',saved);}
+  document.getElementById('theme-toggle').addEventListener('click',function(){
+    const next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next);writeStoredTheme(next);
+  });
+  document.getElementById('back-to-top').addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+  const toc=document.getElementById('toc');
+  const sidebar=document.querySelector('.sidebar');
+  const headings=Array.from(document.querySelectorAll('#content h2,#content h3,#content h4'));
+  const usedIds=new Set();
+  headings.forEach(function(h,i){
+    let id=h.id||'heading-'+i;while(usedIds.has(id)){id+='-'+i;}h.id=id;usedIds.add(id);
+    const a=document.createElement('a');a.href='#'+encodeURIComponent(id);a.textContent=h.textContent;
+    a.className='lv'+h.tagName.substring(1);a.dataset.target=id;toc.appendChild(a);
+  });
+  document.getElementById('toc-count').textContent=headings.length+' 项';
+  const links=Array.from(toc.querySelectorAll('a'));let activeId='';
+  function activate(id){if(!id||id===activeId)return;activeId=id;links.forEach(function(l){l.classList.toggle('active',l.dataset.target===id);});
+    const a=toc.querySelector('a.active');if(!a)return;const p=sidebar.getBoundingClientRect();const r=a.getBoundingClientRect();
+    const t=p.top+52,b=p.bottom-12;if(r.top<t)sidebar.scrollBy({top:r.top-t,behavior:'smooth'});else if(r.bottom>b)sidebar.scrollBy({top:r.bottom-b,behavior:'smooth'});
+  }
+  function syncWithScroll(){const m=Math.max(96,window.innerHeight*.2);let c=headings[0];headings.forEach(function(h){if(h.getBoundingClientRect().top<=m)c=h;});if(c)activate(c.id);
+    const mx=document.documentElement.scrollHeight-window.innerHeight;document.getElementById('progress').style.width=(mx>0?window.scrollY/mx*100:0)+'%';
+  }
+  let ticking=false;window.addEventListener('scroll',function(){if(!ticking){requestAnimationFrame(function(){syncWithScroll();ticking=false;});ticking=true;}},{passive:true});
+  window.addEventListener('resize',syncWithScroll,{passive:true});
+  if(window.hljs)window.hljs.highlightAll();
+  syncWithScroll();
+})();
+</script>
+</body>
+</html>

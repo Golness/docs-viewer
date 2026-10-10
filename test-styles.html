@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试选中样式</title>
+<style>
+:root {
+  --dsw-alias-bg-base: #1e1e1e;
+  --dsw-alias-bg-layer-1: #252525;
+  --dsw-alias-bg-layer-2: #2d2d2d;
+  --dsw-alias-label-primary: #ffffff;
+  --dsw-alias-label-secondary: #a0a0a0;
+  --dsw-alias-brand-primary: #2563eb;
+  --dsw-alias-border-l1: #3d3d3d;
+}
+
+body {
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 20px;
+}
+
+.test-section {
+  margin-bottom: 40px;
+}
+
+.test-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--dsw-alias-brand-primary);
+}
+
+/* 需求项样式 */
+.dv-req-header {
+  padding: 5px 12px 5px 28px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 3px solid transparent;
+}
+
+.dv-req-header:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dv-req-header.selected {
+  background: #2563eb !important;
+  border-left-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+/* 模态框项样式 */
+.dv-modal-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dv-modal-item:last-child {
+  border-bottom: none;
+}
+
+.dv-modal-item:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dv-modal-item.selected {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.dv-modal-item-icon {
+  font-size: 14px;
+}
+
+.dv-modal-item-name {
+  flex: 1;
+}
+
+.dv-modal-item-count {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.info-box {
+  background: var(--dsw-alias-bg-layer-1);
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<div class="info-box">
+  <strong>测试说明：</strong>这是暗色模式下的选中样式测试。选中的项目应该显示为蓝色背景 + 白色文字。
+</div>
+
+<div class="test-section">
+  <div class="test-title">1. 需求项选中样式测试</div>
+  <div class="dv-req-header">普通需求项（未选中）</div>
+  <div class="dv-req-header selected">选中的需求项（应该有蓝色背景和白色文字）</div>
+  <div class="dv-req-header">普通需求项（未选中）</div>
+</div>
+
+<div class="test-section">
+  <div class="test-title">2. 模态框项选中样式测试</div>
+  <div class="dv-modal-item">
+    <span class="dv-modal-item-icon">📁</span>
+    <span class="dv-modal-item-name">普通工作区</span>
+    <span class="dv-modal-item-count">(5)</span>
+  </div>
+  <div class="dv-modal-item selected">
+    <span class="dv-modal-item-icon">📁</span>
+    <span class="dv-modal-item-name">选中的工作区（应该有蓝色背景和白色文字）</span>
+    <span class="dv-modal-item-count">(10)</span>
+  </div>
+  <div class="dv-modal-item">
+    <span class="dv-modal-item-icon">📁</span>
+    <span class="dv-modal-item-name">普通工作区</span>
+    <span class="dv-modal-item-count">(3)</span>
+  </div>
+</div>
+
+<div class="test-section">
+  <div class="test-title">3. CSS 变量值检查</div>
+  <div class="info-box">
+    <div>--dsw-alias-bg-base: <span id="bg-base"></span></div>
+    <div>--dsw-alias-brand-primary: <span id="brand-primary"></span></div>
+    <div>--dsw-alias-label-primary: <span id="label-primary"></span></div>
+  </div>
+</div>
+
+<script>
+// 显示 CSS 变量值
+const styles = getComputedStyle(document.documentElement);
+document.getElementById('bg-base').textContent = styles.getPropertyValue('--dsw-alias-bg-base');
+document.getElementById('brand-primary').textContent = styles.getPropertyValue('--dsw-alias-brand-primary');
+document.getElementById('label-primary').textContent = styles.getPropertyValue('--dsw-alias-label-primary');
+</script>
+
+</body>
+</html>
