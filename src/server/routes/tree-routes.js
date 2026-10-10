@@ -1,0 +1,427 @@
+/**
+ * 文档树相关路由
+ */
+
+import { readdir, stat, mkdir } from 'node:fs/promises';
+import { resolve, relative, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { loadConfig } from '../config.js';
+import { buildTree, countRequirements, findRequirementPath } from '../tree.js';
+import { walkDocs, isInside, json, readBody } from '../utils.js';
+import { getCached, setCached } from '../cache.js';
+import { addLog } from '../logger.js';
+import { SUPPORTED_DOC_EXTS } from '../tree.js';
+
+export function createTreeRoutes(registry) {
+  return [
+    // GET /workspaces - 获取工作区列表
+    {
+      kind: 'exact',
+      path: '/docs-viewer/workspaces',
+      handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const workspaces = registry.list();
+        const items = workspaces.map(w => ({
+          id: w.id,
+          title: w.title || w.id,
+          path: w.path
+        }));
+        json(res, items);
+      }
+    },
+
+    // GET /stats - 获取统计信息
+    {
+      kind: 'exact',
+      path: '/docs-viewer/stats',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const config = await loadConfig();
+          const cacheKey = `all-workspaces:${config.docsDir}`;
+          const cached = getCached(cacheKey);
+          
+          if (cached) {
+            json(res, cached);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const stats = [];
+
+          for (const w of workspaces) {
+            const docsRoot = resolve(w.path, config.docsDir);
+            let docCount = 0;
+            let exists = false;
+
+            try {
+              const info = await stat(docsRoot);
+              if (info.isDirectory()) {
+                exists = true;
+                for (const ext of SUPPORTED_DOC_EXTS) {
+                  const items = await walkDocs(docsRoot, ext);
+                  docCount += items.length;
+                }
+              }
+            } catch { /* ignore */ }
+
+            stats.push({
+              workspaceId: w.id,
+              title: w.title || w.id,
+              docCount,
+              exists
+            });
+          }
+
+          setCached(cacheKey, stats);
+          json(res, stats);
+        } catch (e) {
+          addLog('error', `❌ 获取统计信息失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
+      }
+    },
+
+    // GET /list - 列出文档
+    {
+      kind: 'exact',
+      path: '/docs-viewer/list',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const workspaceId = url.searchParams.get('workspaceId');
+        const ext = url.searchParams.get('ext') || '.md';
+
+        if (!workspaceId) {
+          json(res, { error: 'missing workspaceId' }, 400);
+          return;
+        }
+
+        if (!SUPPORTED_DOC_EXTS.includes(ext)) {
+          json(res, { error: `ext must be one of: ${SUPPORTED_DOC_EXTS.join(', ')}` }, 400);
+          return;
+        }
+
+        const workspaces = registry.list();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+
+        if (!workspace) {
+          json(res, { error: 'workspace not found' }, 404);
+          return;
+        }
+
+        const config = await loadConfig();
+        const docsRoot = resolve(workspace.path, config.docsDir);
+
+        try {
+          await stat(docsRoot);
+        } catch {
+          json(res, { items: [], docsRoot, exists: false });
+          return;
+        }
+
+        const items = await walkDocs(docsRoot, ext);
+        json(res, { items, docsRoot, exists: true, workspace: workspace.id });
+      }
+    },
+
+    // GET /tree - 获取文档树
+    {
+      kind: 'exact',
+      path: '/docs-viewer/tree',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const workspaceId = url.searchParams.get('workspaceId');
+
+        if (!workspaceId) {
+          json(res, { error: 'missing workspaceId' }, 400);
+          return;
+        }
+
+        const workspaces = registry.list();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+
+        if (!workspace) {
+          json(res, { error: 'workspace not found' }, 404);
+          return;
+        }
+
+        const config = await loadConfig();
+        const docsRoot = resolve(workspace.path, config.docsDir);
+
+        try {
+          await stat(docsRoot);
+        } catch {
+          json(res, { tree: { developers: [] }, totalRequirements: 0, docsDir: config.docsDir, exists: false });
+          return;
+        }
+
+        const tree = await buildTree(docsRoot);
+        const totalRequirements = countRequirements(tree);
+
+        json(res, { tree, totalRequirements, docsDir: config.docsDir, exists: true });
+      }
+    },
+
+    // GET /read - 读取文件内容
+    {
+      kind: 'exact',
+      path: '/docs-viewer/read',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const workspaceId = url.searchParams.get('workspaceId');
+        const path = url.searchParams.get('path');
+
+        if (!workspaceId || !path) {
+          json(res, { error: 'missing workspaceId or path' }, 400);
+          return;
+        }
+
+        const workspaces = registry.list();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+
+        if (!workspace) {
+          json(res, { error: 'workspace not found' }, 404);
+          return;
+        }
+
+        const config = await loadConfig();
+        const docsRoot = resolve(workspace.path, config.docsDir);
+        const fullPath = resolve(docsRoot, path);
+
+        if (!isInside(docsRoot, fullPath)) {
+          json(res, { error: 'path outside docs root' }, 400);
+          return;
+        }
+
+        try {
+          const info = await stat(fullPath);
+          if (!info.isFile()) {
+            json(res, { error: 'not a file' }, 400);
+            return;
+          }
+
+          const { readFile } = await import('node:fs/promises');
+          const text = await readFile(fullPath, 'utf-8');
+          json(res, { text, path: relative(docsRoot, fullPath) });
+        } catch (e) {
+          json(res, { error: e.message }, 500);
+        }
+      }
+    },
+
+    // GET /requirements/:id - 获取需求详情
+    {
+      kind: 'prefix',
+      path: '/docs-viewer/requirements/',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const workspaceId = url.searchParams.get('workspaceId');
+        const reqId = decodeURIComponent(url.pathname.slice('/docs-viewer/requirements/'.length));
+
+        if (!workspaceId || !reqId) {
+          json(res, { error: 'missing workspaceId or requirement id' }, 400);
+          return;
+        }
+
+        const workspaces = registry.list();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+
+        if (!workspace) {
+          json(res, { error: 'workspace not found' }, 404);
+          return;
+        }
+
+        const config = await loadConfig();
+        const docsRoot = resolve(workspace.path, config.docsDir);
+        const tree = await buildTree(docsRoot);
+        const found = findRequirementPath(docsRoot, tree, reqId);
+
+        if (!found) {
+          json(res, { error: 'requirement not found' }, 404);
+          return;
+        }
+
+        json(res, found);
+      }
+    },
+
+    // POST /create-dir - 创建需求目录
+    {
+      kind: 'exact',
+      path: '/docs-viewer/create-dir',
+      async handler(req, res) {
+        if (req.method !== 'POST') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const raw = await readBody(req);
+          const { workspaceId, developer, date, title } = JSON.parse(raw);
+
+          if (!workspaceId || !developer || !date || !title) {
+            json(res, { error: 'missing required fields: workspaceId, developer, date, title' }, 400);
+            return;
+          }
+
+          if (/[\\/]/.test(developer) || developer.startsWith('.')) {
+            json(res, { error: 'invalid developer name' }, 400);
+            return;
+          }
+
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            json(res, { error: 'date must be YYYY-MM-DD format' }, 400);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { error: 'workspace not found' }, 404);
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          const dirName = `${date}-${title}`;
+          const targetPath = join(docsRoot, developer, dirName);
+
+          if (!isInside(docsRoot, targetPath)) {
+            json(res, { error: 'path outside docs' }, 400);
+            return;
+          }
+
+          if (existsSync(targetPath)) {
+            json(res, { error: 'directory already exists' }, 409);
+            return;
+          }
+
+          await mkdir(targetPath, { recursive: true });
+          addLog('success', `📁 创建目录: ${developer}/${dirName}`);
+          json(res, { success: true, path: relative(docsRoot, targetPath), fullPath: targetPath });
+        } catch (e) {
+          addLog('error', `❌ 创建目录失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
+      }
+    },
+
+    // GET /fields/:field - 按字段名查找关联需求
+    {
+      kind: 'prefix',
+      path: '/docs-viewer/fields/',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const workspaceId = url.searchParams.get('workspaceId');
+        const fieldName = decodeURIComponent(url.pathname.slice('/docs-viewer/fields/'.length));
+
+        if (!workspaceId || !fieldName) {
+          json(res, { error: 'missing workspaceId or field name' }, 400);
+          return;
+        }
+
+        const workspaces = registry.list();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+        if (!workspace) {
+          json(res, { error: 'workspace not found' }, 404);
+          return;
+        }
+
+        const config = await loadConfig();
+        const docsRoot = resolve(workspace.path, config.docsDir);
+
+        // Load search index
+        const { loadIndex } = await import('../index-manager.js');
+        const index = await loadIndex(docsRoot);
+
+        if (!index) {
+          json(res, { field: fieldName, associations: [], indexBuilt: false });
+          return;
+        }
+
+        // Find the field in fieldIndex (case-insensitive match)
+        const matchedKeys = Object.keys(index.fieldIndex || {}).filter(
+          k => k.toLowerCase() === fieldName.toLowerCase() || k.toLowerCase().includes(fieldName.toLowerCase())
+        );
+
+        const associatedReqIds = new Set();
+        for (const key of matchedKeys) {
+          for (const id of index.fieldIndex[key]) {
+            associatedReqIds.add(id);
+          }
+        }
+
+        // Build association details
+        const associations = [];
+        for (const r of index.requirements || []) {
+          if (!associatedReqIds.has(r.id)) continue;
+          const matchedFields = (r.fields || []).filter(f =>
+            matchedKeys.some(k => k.toLowerCase() === f.toLowerCase())
+          );
+          associations.push({
+            id: r.id,
+            developer: r.developer,
+            date: r.date,
+            title: r.title,
+            type: r.type,
+            summary: r.summary,
+            matchedFields,
+            changeDescription: r.summary || '',
+          });
+        }
+
+        // Sort by date descending
+        associations.sort((a, b) => b.date.localeCompare(a.date));
+
+        json(res, {
+          field: fieldName,
+          matchedKeys,
+          associations,
+          total: associations.length,
+          indexBuilt: true,
+        });
+      }
+    }
+  ];
+}

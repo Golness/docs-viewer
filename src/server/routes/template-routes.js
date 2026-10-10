@@ -1,0 +1,197 @@
+/**
+ * 模板生成相关路由
+ */
+
+import { resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { loadConfig } from '../config.js';
+import { buildTree, findRequirementPath } from '../tree.js';
+import { getPrompt } from '../prompts.js';
+import { callLLM } from '../ai-engine.js';
+import { json, readBody } from '../utils.js';
+import { addLog } from '../logger.js';
+
+// 文档模板
+const REQUIREMENT_TEMPLATE = `# 需求文档
+
+## 功能描述
+[描述需求的功能和特性]
+
+## 技术方案
+[描述技术实现方案]
+
+## 数据库变更
+[描述数据库表结构和字段变更]
+
+## 接口变更
+[描述 API 接口的变更]
+
+## 测试要点
+[描述需要测试的关键点]
+`;
+
+const DESIGN_TEMPLATE = `# 技术方案
+
+## 背景
+[描述技术方案的背景]
+
+## 目标
+[描述技术方案要达成的目标]
+
+## 方案设计
+[详细描述技术实现方案]
+
+## 数据库设计
+[描述数据库表结构设计]
+
+## 接口设计
+[描述 API 接口设计]
+
+## 风险评估
+[描述可能的风险和应对措施]
+`;
+
+const CR_TEMPLATE = `# CR 记录
+
+## 变更概述
+[描述本次变更的主要内容]
+
+## 变更详情
+[详细描述变更的内容]
+
+## 影响范围
+[描述变更影响的范围]
+
+## 测试情况
+[描述测试的情况和结果]
+
+## 注意事项
+[描述需要特别注意的事项]
+`;
+
+const TEMPLATES = {
+  requirement: REQUIREMENT_TEMPLATE,
+  design: DESIGN_TEMPLATE,
+  cr: CR_TEMPLATE
+};
+
+export function createTemplateRoutes(registry, llm) {
+  return [
+    // GET /templates - 获取模板列表
+    {
+      kind: 'exact',
+      path: '/docs-viewer/templates',
+      handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        json(res, {
+          requirement: {
+            label: '需求文档',
+            icon: '📋',
+            fileName: 'requirement.md',
+            content: REQUIREMENT_TEMPLATE
+          },
+          design: {
+            label: '技术方案',
+            icon: '📐',
+            fileName: 'design.md',
+            content: DESIGN_TEMPLATE
+          },
+          cr: {
+            label: 'CR 记录',
+            icon: '🔍',
+            fileName: 'cr-notes.md',
+            content: CR_TEMPLATE
+          }
+        });
+      }
+    },
+
+    // POST /generate-template - 生成模板文件
+    {
+      kind: 'exact',
+      path: '/docs-viewer/generate-template',
+      async handler(req, res) {
+        if (req.method !== 'POST') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const body = await readBody(req);
+          const { workspaceId, requirementId, docType, useAI } = JSON.parse(body);
+
+          if (!workspaceId || !requirementId || !docType) {
+            json(res, { error: 'missing required fields' }, 400);
+            return;
+          }
+
+          if (!TEMPLATES[docType]) {
+            json(res, { error: `unknown docType: ${docType}` }, 400);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+
+          if (!workspace) {
+            json(res, { error: 'workspace not found' }, 404);
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          const tree = await buildTree(docsRoot);
+          const found = findRequirementPath(docsRoot, tree, requirementId);
+
+          if (!found) {
+            json(res, { error: 'requirement not found' }, 404);
+            return;
+          }
+
+          let content;
+          if (useAI && llm) {
+            try {
+              addLog('info', `🤖 AI 生成 ${docType} 模板...`);
+              const docTypeName = docType === 'requirement' ? '需求文档' : docType === 'design' ? '技术方案' : 'CR记录';
+              const templatePrompt = getPrompt(config, 'template')
+                .replace(/\{docTypeName\}/g, docTypeName)
+                .replace(/\{requirementId\}/g, requirementId)
+                .replace(/\{path\}/g, found.path);
+              
+              content = await callLLM(llm, templatePrompt, config);
+              addLog('success', `✅ AI 生成 ${docType} 模板完成`);
+            } catch (err) {
+              addLog('warning', `⚠️ AI 生成失败，降级为静态模板: ${err.message}`);
+              content = TEMPLATES[docType];
+            }
+          } else {
+            content = TEMPLATES[docType];
+          }
+
+          const fileName = docType === 'cr' ? 'cr-notes.md' : `${docType}.md`;
+          const filePath = join(found.path, fileName);
+
+          await writeFile(filePath, content, 'utf8');
+          addLog('success', `📋 生成${docType}文档模板: ${fileName}`);
+
+          json(res, {
+            success: true,
+            path: filePath,
+            fileName,
+            content
+          });
+        } catch (e) {
+          addLog('error', `❌ 生成模板失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
+      }
+    }
+  ];
+}

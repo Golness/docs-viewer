@@ -1,3 +1,9 @@
 {
-  "docsDir": "docs"
+  "docsDir": "docs",
+  "workspaceId": "7adbcce6-a012-4992-9c3d-f723d2c386f3",
+  "ai": {
+    "prompts": {}
+  },
+  "developerName": "lihanping",
+  "requirementId": "2026-10-08-p1-implementation"
 }

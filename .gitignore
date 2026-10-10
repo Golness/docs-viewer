@@ -7,3 +7,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Plugin docs directory (example data)
+docs/
