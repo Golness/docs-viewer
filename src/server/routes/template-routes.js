@@ -81,7 +81,7 @@ export function createTemplateRoutes(registry, llm) {
     // GET /templates - 获取模板列表
     {
       kind: 'exact',
-      path: '/docs-viewer/templates',
+      path: '/req-hub/templates',
       handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -115,7 +115,7 @@ export function createTemplateRoutes(registry, llm) {
     // POST /generate-template - 生成模板文件
     {
       kind: 'exact',
-      path: '/docs-viewer/generate-template',
+      path: '/req-hub/generate-template',
       async handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);

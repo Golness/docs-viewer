@@ -1,18 +1,18 @@
 window.__ModuleLoader__.load({
-  id: '@local/docs-viewer',
+  id: '@local/req-hub',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
     const { useState, useEffect, useLayoutEffect, useRef, useCallback } = React;
 
-    const ROUTE = '/docs-viewer';
-    const TAB_KIND = 'docs-viewer';
-    const TAB_ID = '@local/docs-viewer';
+    const ROUTE = '/req-hub';
+    const TAB_KIND = 'req-hub';
+    const TAB_ID = '@local/req-hub';
 
     // Script IDs
-    const MARKED_SCRIPT_ID = 'docs-viewer-marked';
-    const MERMAID_SCRIPT_ID = 'docs-viewer-mermaid';
-    const HIGHLIGHT_SCRIPT_ID = 'docs-viewer-highlight';
+    const MARKED_SCRIPT_ID = 'req-hub-marked';
+    const MERMAID_SCRIPT_ID = 'req-hub-mermaid';
+    const HIGHLIGHT_SCRIPT_ID = 'req-hub-highlight';
 
     // ─── React Context for cross-component communication ─────────────
     const DocsViewerContext = React.createContext({
@@ -62,7 +62,7 @@ window.__ModuleLoader__.load({
     }
 
     // ─── Styles ──────────────────────────────────────────────────────
-    const STYLE_ID = 'docs-viewer-styles';
+    const STYLE_ID = 'req-hub-styles';
 
     if (!document.getElementById(STYLE_ID)) {
       const el = document.createElement('style');
@@ -736,9 +736,9 @@ window.__ModuleLoader__.load({
       );
       // Load highlight.js CSS
       useEffect(() => {
-        if (!document.getElementById('docs-viewer-hljs-css')) {
+        if (!document.getElementById('req-hub-hljs-css')) {
           const link = document.createElement('link');
-          link.id = 'docs-viewer-hljs-css';
+          link.id = 'req-hub-hljs-css';
           link.rel = 'stylesheet';
           link.href = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css';
           document.head.appendChild(link);
@@ -4998,7 +4998,7 @@ window.__ModuleLoader__.load({
 
           // ── Status bar (4.24) ──
           h('div', { className: 'dv-statusbar' },
-            h('span', null, 'docs-viewer v4.0'),
+            h('span', null, 'ReqHub v1.0'),
             h('span', null,
               `docsDir: ${docsDir} · `,
               h('span', { style: { fontWeight: 600 } }, `${totalReqs} requirements`),
@@ -5258,7 +5258,7 @@ window.__ModuleLoader__.load({
         }, TabTitle)));
 
         disposers.push(ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
-          name: 'sidebar.footer.action', id: 'docs-viewer-trigger', order: 10,
+          name: 'sidebar.footer.action', id: 'req-hub-trigger', order: 10,
           label: 'Project Documentation',
         }, ({ wide }) => {
           const handleClick = () => {

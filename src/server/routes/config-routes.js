@@ -12,7 +12,7 @@ export function createConfigRoutes(registry, llm) {
     // GET+POST /config - 获取/更新配置（合并为单路由，避免同路径重复注册）
     {
       kind: 'exact',
-      path: '/docs-viewer/config',
+      path: '/req-hub/config',
       async handler(req, res) {
         if (req.method === 'GET') {
           try {
@@ -70,7 +70,7 @@ export function createConfigRoutes(registry, llm) {
     // GET /llm-config - 获取 LLM 配置
     {
       kind: 'exact',
-      path: '/docs-viewer/llm-config',
+      path: '/req-hub/llm-config',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -114,7 +114,7 @@ export function createConfigRoutes(registry, llm) {
     // GET /ai-config - 获取 AI 配置（LLM 服务信息）
     {
       kind: 'exact',
-      path: '/docs-viewer/ai-config',
+      path: '/req-hub/ai-config',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -156,7 +156,7 @@ export function createConfigRoutes(registry, llm) {
     // GET /prompt-registry - 获取 Prompt 注册表
     {
       kind: 'exact',
-      path: '/docs-viewer/prompt-registry',
+      path: '/req-hub/prompt-registry',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);

@@ -1,5 +1,5 @@
 /**
- * Docs Viewer 插件入口
+ * ReqHub 插件入口
  * 重构后的模块化架构
  */
 
@@ -17,7 +17,7 @@ export const inject = ['workspaceRegistry', 'webServer', 'llm', 'sessionQuery'];
 export function apply(ctx) {
   const { workspaceRegistry, webServer, llm, sessionQuery } = ctx;
 
-  addLog('info', '🚀 Docs Viewer 插件启动 (模块化架构)');
+  addLog('info', '🚀 ReqHub 插件启动 (模块化架构)');
 
   const disposers = [];
 
@@ -44,7 +44,7 @@ export function apply(ctx) {
     // 日志相关
     {
       kind: 'exact',
-      path: '/docs-viewer/logs',
+      path: '/req-hub/logs',
       handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -56,7 +56,7 @@ export function apply(ctx) {
     },
     {
       kind: 'exact',
-      path: '/docs-viewer/logs/clear',
+      path: '/req-hub/logs/clear',
       handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -89,6 +89,6 @@ export function apply(ctx) {
     for (const dispose of disposers) {
       dispose();
     }
-    addLog('info', '🛑 Docs Viewer 插件卸载');
+    addLog('info', '🛑 ReqHub 插件卸载');
   };
 }

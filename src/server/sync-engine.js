@@ -279,6 +279,6 @@ ${syncResult.changes.map(c => `- ${c}`).join('\n') || '无变更'}
 ${syncResult.additions.map(a => `- ${a}`).join('\n') || '无详细变更'}
 
 ---
-*此日志由 docs-viewer 自动生成*
+*此日志由 ReqHub 自动生成*
 `;
 }

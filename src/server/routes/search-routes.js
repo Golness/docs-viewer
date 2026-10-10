@@ -15,7 +15,7 @@ export function createSearchRoutes(registry, llm) {
     // GET /search - 精确搜索
     {
       kind: 'exact',
-      path: '/docs-viewer/search',
+      path: '/req-hub/search',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -106,7 +106,7 @@ export function createSearchRoutes(registry, llm) {
     // POST /ai-search - AI 语义搜索
     {
       kind: 'exact',
-      path: '/docs-viewer/ai-search',
+      path: '/req-hub/ai-search',
       async handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -231,7 +231,7 @@ ${requirementsSummary}
     // GET /index-status - 获取索引状态
     {
       kind: 'exact',
-      path: '/docs-viewer/index-status',
+      path: '/req-hub/index-status',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -280,7 +280,7 @@ ${requirementsSummary}
     // POST /rebuild-index - 重建索引
     {
       kind: 'exact',
-      path: '/docs-viewer/rebuild-index',
+      path: '/req-hub/rebuild-index',
       async handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -337,7 +337,7 @@ ${requirementsSummary}
     // GET /index-data - 获取索引数据
     {
       kind: 'exact',
-      path: '/docs-viewer/index-data',
+      path: '/req-hub/index-data',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);

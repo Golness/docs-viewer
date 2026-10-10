@@ -17,7 +17,7 @@ export function createTreeRoutes(registry) {
     // GET /workspaces - 获取工作区列表
     {
       kind: 'exact',
-      path: '/docs-viewer/workspaces',
+      path: '/req-hub/workspaces',
       handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -38,7 +38,7 @@ export function createTreeRoutes(registry) {
     // GET /stats - 获取统计信息
     {
       kind: 'exact',
-      path: '/docs-viewer/stats',
+      path: '/req-hub/stats',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -95,7 +95,7 @@ export function createTreeRoutes(registry) {
     // GET /list - 列出文档
     {
       kind: 'exact',
-      path: '/docs-viewer/list',
+      path: '/req-hub/list',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -143,7 +143,7 @@ export function createTreeRoutes(registry) {
     // GET /tree - 获取文档树
     {
       kind: 'exact',
-      path: '/docs-viewer/tree',
+      path: '/req-hub/tree',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -187,7 +187,7 @@ export function createTreeRoutes(registry) {
     // GET /read - 读取文件内容
     {
       kind: 'exact',
-      path: '/docs-viewer/read',
+      path: '/req-hub/read',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -240,7 +240,7 @@ export function createTreeRoutes(registry) {
     // GET /requirements/:id - 获取需求详情
     {
       kind: 'prefix',
-      path: '/docs-viewer/requirements/',
+      path: '/req-hub/requirements/',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -250,7 +250,7 @@ export function createTreeRoutes(registry) {
 
         const url = new URL(req.url, 'http://localhost');
         const workspaceId = url.searchParams.get('workspaceId');
-        const reqId = decodeURIComponent(url.pathname.slice('/docs-viewer/requirements/'.length));
+        const reqId = decodeURIComponent(url.pathname.slice('/req-hub/requirements/'.length));
 
         if (!workspaceId || !reqId) {
           json(res, { error: 'missing workspaceId or requirement id' }, 400);
@@ -282,7 +282,7 @@ export function createTreeRoutes(registry) {
     // POST /create-dir - 创建需求目录
     {
       kind: 'exact',
-      path: '/docs-viewer/create-dir',
+      path: '/req-hub/create-dir',
       async handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -344,7 +344,7 @@ export function createTreeRoutes(registry) {
     // GET /fields/:field - 按字段名查找关联需求
     {
       kind: 'prefix',
-      path: '/docs-viewer/fields/',
+      path: '/req-hub/fields/',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -354,7 +354,7 @@ export function createTreeRoutes(registry) {
 
         const url = new URL(req.url, 'http://localhost');
         const workspaceId = url.searchParams.get('workspaceId');
-        const fieldName = decodeURIComponent(url.pathname.slice('/docs-viewer/fields/'.length));
+        const fieldName = decodeURIComponent(url.pathname.slice('/req-hub/fields/'.length));
 
         if (!workspaceId || !fieldName) {
           json(res, { error: 'missing workspaceId or field name' }, 400);

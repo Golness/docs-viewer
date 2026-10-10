@@ -1,4 +1,4 @@
-# Docs Viewer
+# ReqHub - 需求中心
 
 一个用于 DeepSeek Harness (DSH) 的需求文档管理插件，提供需求目录管理、AI 分析、文档同步、需求追溯等功能。
 
@@ -103,7 +103,7 @@ docs/
 ## 项目结构
 
 ```
-docs-viewer/
+req-hub/
 ├── package.json           # 包配置
 ├── config.json            # 插件配置
 ├── cordis.patch.yml       # Cordis 补丁
@@ -134,17 +134,17 @@ docs-viewer/
 
 | 路由 | 方法 | 说明 |
 |------|------|------|
-| `/docs-viewer/config` | GET/POST | 获取/更新配置 |
-| `/docs-viewer/workspaces` | GET | 列出可用工作区 |
-| `/docs-viewer/tree` | GET | 获取需求目录树 |
-| `/docs-viewer/read` | GET | 读取文件内容 |
-| `/docs-viewer/git-branch` | GET | 获取当前 Git 分支 |
-| `/docs-viewer/create-dir` | POST | 创建需求目录 |
-| `/docs-viewer/analyze-stream` | GET (SSE) | AI 分析流式接口 |
-| `/docs-viewer/sync` | POST | 文档同步 |
-| `/docs-viewer/search` | GET | 搜索需求 |
-| `/docs-viewer/templates` | GET | 获取模板列表 |
-| `/docs-viewer/session-info` | GET | 获取会话信息 |
+| `/req-hub/config` | GET/POST | 获取/更新配置 |
+| `/req-hub/workspaces` | GET | 列出可用工作区 |
+| `/req-hub/tree` | GET | 获取需求目录树 |
+| `/req-hub/read` | GET | 读取文件内容 |
+| `/req-hub/git-branch` | GET | 获取当前 Git 分支 |
+| `/req-hub/create-dir` | POST | 创建需求目录 |
+| `/req-hub/analyze-stream` | GET (SSE) | AI 分析流式接口 |
+| `/req-hub/sync` | POST | 文档同步 |
+| `/req-hub/search` | GET | 搜索需求 |
+| `/req-hub/templates` | GET | 获取模板列表 |
+| `/req-hub/session-info` | GET | 获取会话信息 |
 
 ## 依赖注入
 

@@ -21,7 +21,7 @@ export function createAnalyzeRoutes(registry, llm) {
     // GET /analyze-preview - 获取分析预览文件列表
     {
       kind: 'exact',
-      path: '/docs-viewer/analyze-preview',
+      path: '/req-hub/analyze-preview',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -99,7 +99,7 @@ export function createAnalyzeRoutes(registry, llm) {
     // GET /analyze-stream (SSE) - 流式分析
     {
       kind: 'exact',
-      path: '/docs-viewer/analyze-stream',
+      path: '/req-hub/analyze-stream',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -322,7 +322,7 @@ export function createAnalyzeRoutes(registry, llm) {
     // GET /analysis-status - 获取分析任务状态（用于页面重载后恢复）
     {
       kind: 'exact',
-      path: '/docs-viewer/analysis-status',
+      path: '/req-hub/analysis-status',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -351,7 +351,7 @@ export function createAnalyzeRoutes(registry, llm) {
     // POST /analysis-cancel - 取消分析任务
     {
       kind: 'exact',
-      path: '/docs-viewer/analysis-cancel',
+      path: '/req-hub/analysis-cancel',
       async handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -375,7 +375,7 @@ export function createAnalyzeRoutes(registry, llm) {
     // GET /meta - 获取 meta 数据
     {
       kind: 'exact',
-      path: '/docs-viewer/meta',
+      path: '/req-hub/meta',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);

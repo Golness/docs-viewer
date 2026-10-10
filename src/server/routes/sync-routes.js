@@ -34,7 +34,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /git-branch - 获取 Git 分支信息
     {
       kind: 'exact',
-      path: '/docs-viewer/git-branch',
+      path: '/req-hub/git-branch',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -76,7 +76,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /sync-branch-info - 获取同步分支信息（目标分支和基准分支）
     {
       kind: 'exact',
-      path: '/docs-viewer/sync-branch-info',
+      path: '/req-hub/sync-branch-info',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -136,7 +136,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /sessions - 获取相关 DSH 会话列表
     {
       kind: 'exact',
-      path: '/docs-viewer/sessions',
+      path: '/req-hub/sessions',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -175,7 +175,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /session-info - 获取指定会话的详细信息
     {
       kind: 'exact',
-      path: '/docs-viewer/session-info',
+      path: '/req-hub/session-info',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -234,7 +234,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /current-session - 获取当前会话信息（最近的会话）
     {
       kind: 'exact',
-      path: '/docs-viewer/current-session',
+      path: '/req-hub/current-session',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -317,7 +317,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /session-turns - 获取会话的轮次内容预览
     {
       kind: 'exact',
-      path: '/docs-viewer/session-turns',
+      path: '/req-hub/session-turns',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -347,7 +347,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // POST /sync-docs - 同步文档（传统模式）
     {
       kind: 'exact',
-      path: '/docs-viewer/sync-docs',
+      path: '/req-hub/sync-docs',
       handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -548,7 +548,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // POST /phased-sync - 分阶段同步（代码 + 对话）
     {
       kind: 'exact',
-      path: '/docs-viewer/phased-sync',
+      path: '/req-hub/phased-sync',
       async handler(req, res) {
         if (req.method !== 'POST') {
           res.writeHead(405);
@@ -1009,7 +1009,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /sync-active - Get active sync task
     {
       kind: 'exact',
-      path: '/docs-viewer/sync-active',
+      path: '/req-hub/sync-active',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -1034,7 +1034,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /sync-history - Get sync history list
     {
       kind: 'exact',
-      path: '/docs-viewer/sync-history',
+      path: '/req-hub/sync-history',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -1059,7 +1059,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /sync-history/:id - Get specific sync detail
     {
       kind: 'exact',
-      path: '/docs-viewer/sync-detail',
+      path: '/req-hub/sync-detail',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
@@ -1091,7 +1091,7 @@ export function createSyncRoutes(registry, llm, ctx) {
     // GET /sync-file - Read a generated file
     {
       kind: 'exact',
-      path: '/docs-viewer/sync-file',
+      path: '/req-hub/sync-file',
       async handler(req, res) {
         if (req.method !== 'GET') {
           res.writeHead(405);
