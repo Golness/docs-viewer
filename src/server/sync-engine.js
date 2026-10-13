@@ -6,7 +6,7 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getPrompt } from './prompts.js';
-import { addLog } from './logger.js';
+import { log } from './logger.js';
 import { validateBranchName, parseBranchName } from './utils.js';
 
 const execAsync = promisify(exec);
@@ -48,7 +48,7 @@ export async function findBranchByRequirement(repoPath, requirementId) {
     
     return null;
   } catch (e) {
-    addLog('error', `❌ 查找分支失败: ${e.message}`);
+    log.syncEngine.error(`查找分支失败: ${e.message}`);
     return null;
   }
 }
@@ -97,8 +97,9 @@ export async function getBranchCommits(repoPath, branchName) {
     const baseBranches = await detectBaseBranches(repoPath);
     if (baseBranches.length === 0) {
       // No base branch found, just list all commits on this branch
+      // --reverse 让结果按时间正序排列（最早的在前）
       const { stdout } = await execAsync(
-        `git log ${targetBranch} --pretty=format:"%H|%s|%an|%ad" --date=short`,
+        `git log ${targetBranch} --reverse --pretty=format:"%H|%s|%an|%ad" --date=short`,
         { cwd: repoPath, maxBuffer: 1024 * 1024 * 10 }
       );
       if (!stdout.trim()) return [];
@@ -109,8 +110,9 @@ export async function getBranchCommits(repoPath, branchName) {
     }
 
     const notClause = baseBranches.map(b => `--not ${b}`).join(' ');
+    // --reverse 让结果按时间正序排列（最早的在前）
     const { stdout } = await execAsync(
-      `git log ${targetBranch} ${notClause} --pretty=format:"%H|%s|%an|%ad" --date=short`,
+      `git log ${targetBranch} ${notClause} --reverse --pretty=format:"%H|%s|%an|%ad" --date=short`,
       { cwd: repoPath, maxBuffer: 1024 * 1024 * 10 }
     );
 
@@ -121,7 +123,7 @@ export async function getBranchCommits(repoPath, branchName) {
       return { hash, subject, author, date };
     });
   } catch (e) {
-    addLog('error', `❌ 获取提交失败: ${e.message}`);
+    log.syncEngine.error(`获取提交失败: ${e.message}`);
     throw new Error(`获取提交失败: ${e.message}`);
   }
 }
@@ -167,44 +169,140 @@ export async function getBranchCodeDiff(repoPath, branchName) {
       baseBranch = baseBranches.includes('main') ? 'main' : baseBranches[0];
     }
 
-    // Get diff between base and this branch
-    const { stdout } = await execAsync(
+    // Get diff between base and this branch (committed changes)
+    const { stdout: committedDiff } = await execAsync(
       `git diff ${baseBranch}...${targetBranch} --stat && echo "===DIFF===" && git diff ${baseBranch}...${targetBranch}`,
       { cwd: repoPath, maxBuffer: 1024 * 1024 * 50 }
     );
 
     // Truncate if too large
-    if (stdout.length > 100000) {
-      return stdout.substring(0, 100000) + '\n\n[... 内容已截断 ...]';
+    let result = committedDiff;
+    if (result.length > 100000) {
+      result = result.substring(0, 100000) + '\n\n[... 内容已截断 ...]';
     }
-    return stdout;
+    return result;
   } catch (e) {
-    addLog('error', `❌ 获取代码差异失败: ${e.message}`);
+    log.syncEngine.error(`获取代码差异失败: ${e.message}`);
     throw new Error(`获取代码差异失败: ${e.message}`);
   }
 }
 
 /**
- * 构建同步提示词
+ * 获取未提交的代码变更
+ * @param {string} repoPath - 仓库路径
+ * @returns {Promise<{staged: string, unstaged: string, untracked: string[], hasChanges: boolean}>} 未提交的变更
+ */
+export async function getUncommittedChanges(repoPath) {
+  try {
+    // 获取已暂存的变更
+    let staged = '';
+    try {
+      const { stdout: stagedDiff } = await execAsync(
+        `git diff --cached --stat && echo "===DIFF===" && git diff --cached`,
+        { cwd: repoPath, maxBuffer: 1024 * 1024 * 50 }
+      );
+      staged = stagedDiff;
+    } catch { /* no staged changes */ }
+    
+    // 获取未暂存的变更
+    let unstaged = '';
+    try {
+      const { stdout: unstagedDiff } = await execAsync(
+        `git diff --stat && echo "===DIFF===" && git diff`,
+        { cwd: repoPath, maxBuffer: 1024 * 1024 * 50 }
+      );
+      unstaged = unstagedDiff;
+    } catch { /* no unstaged changes */ }
+    
+    // 获取未跟踪的文件
+    let untracked = [];
+    try {
+      const { stdout: untrackedFiles } = await execAsync(
+        `git ls-files --others --exclude-standard`,
+        { cwd: repoPath }
+      );
+      untracked = untrackedFiles.trim().split('\n').filter(Boolean);
+    } catch { /* no untracked files */ }
+    
+    const hasChanges = !!(staged || unstaged || untracked.length > 0);
+    
+    return { staged, unstaged, untracked, hasChanges };
+  } catch (e) {
+    log.syncEngine.error(`获取未提交变更失败: ${e.message}`);
+    return { staged: '', unstaged: '', untracked: [], hasChanges: false };
+  }
+}
+
+/**
+ * 获取完整的代码差异（包括已提交和未提交的）
+ * @param {string} repoPath - 仓库路径
+ * @param {string} branchName - 分支名称
+ * @returns {Promise<{committedDiff: string, uncommittedChanges: object, combined: string}>} 完整差异
+ */
+export async function getFullCodeDiff(repoPath, branchName) {
+  const [committedDiff, uncommittedChanges] = await Promise.all([
+    getBranchCodeDiff(repoPath, branchName),
+    getUncommittedChanges(repoPath),
+  ]);
+  
+  let combined = '';
+  
+  // 添加已提交的变更
+  if (committedDiff) {
+    combined += `# 已提交的变更\n\n${committedDiff}\n\n`;
+  }
+  
+  // 添加未提交的变更
+  if (uncommittedChanges.hasChanges) {
+    combined += `# 未提交的变更\n\n`;
+    
+    if (uncommittedChanges.staged) {
+      combined += `## 已暂存（待提交）\n\n${uncommittedChanges.staged}\n\n`;
+    }
+    
+    if (uncommittedChanges.unstaged) {
+      combined += `## 未暂存（已修改未暂存）\n\n${uncommittedChanges.unstaged}\n\n`;
+    }
+    
+    if (uncommittedChanges.untracked.length > 0) {
+      combined += `## 未跟踪的新文件\n\n${uncommittedChanges.untracked.map(f => `- ${f}`).join('\n')}\n\n`;
+    }
+  }
+  
+  // Truncate if too large
+  if (combined.length > 200000) {
+    combined = combined.substring(0, 200000) + '\n\n[... 内容已截断 ...]';
+  }
+  
+  return {
+    committedDiff,
+    uncommittedChanges,
+    combined,
+  };
+}
+
+/**
+ * 构建同步模板变量
  * @param {string} docType - 文档类型
  * @param {string} currentDoc - 当前文档内容
  * @param {Array} commits - 提交记录
  * @param {string} codeDiff - 代码差异
  * @param {Object} config - 配置对象
- * @returns {string} 提示词
+ * @returns {Object} 模板变量
  */
-export function buildSyncPrompt(docType, currentDoc, commits, codeDiff, config) {
+export function buildSyncVariables(docType, currentDoc, commits, codeDiff, config) {
   const docTypeName = docType === 'requirement' ? '需求文档' : '技术文档';
   const commitList = commits.map(c => `- ${c.hash.substring(0, 7)} ${c.subject} (${c.author}, ${c.date})`).join('\n');
-  const template = getPrompt(config, 'sync');
-
-  return template
-    .replace(/\{docTypeName\}/g, docTypeName)
-    .replace(/\{currentDoc\}/g, currentDoc)
-    .replace(/\{commitList\}/g, commitList)
-    .replace(/\{codeDiff\}/g, codeDiff)
-    .replace(/\{date\}/g, new Date().toISOString().split('T')[0])
-    .replace(/\{commitCount\}/g, String(commits.length));
+  const date = new Date().toISOString().split('T')[0];
+  
+  return {
+    docTypeName,
+    currentDoc: currentDoc || '(空文档)',
+    commitList: commitList || '(无提交记录)',
+    codeDiff: codeDiff || '(无代码变更)',
+    date,
+    commitCount: String(commits.length),
+  };
 }
 
 /**
@@ -282,3 +380,6 @@ ${syncResult.additions.map(a => `- ${a}`).join('\n') || '无详细变更'}
 *此日志由 ReqHub 自动生成*
 `;
 }
+
+
+

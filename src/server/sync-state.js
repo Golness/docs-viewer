@@ -7,7 +7,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { addLog } from './logger.js';
+import { log } from './logger.js';
 
 // In-memory cache: requirementKey -> state
 const stateCache = new Map();
@@ -33,7 +33,7 @@ function getStateFile(requirementPath) {
  */
 export async function loadState(workspaceId, requirementId, requirementPath) {
   if (!workspaceId || !requirementId || !requirementPath) {
-    addLog('warning', '⚠️ loadState called without required parameters');
+    log.state.warn('loadState called without required parameters');
     return;
   }
 
@@ -42,21 +42,28 @@ export async function loadState(workspaceId, requirementId, requirementPath) {
   // Cache the requirement path
   requirementPathCache.set(key, requirementPath);
 
+  // Check if already cached - avoid repeated disk reads
+  if (stateCache.has(key)) {
+    return stateCache.get(key);
+  }
+
   try {
     const stateFile = getStateFile(requirementPath);
     if (existsSync(stateFile)) {
       const content = await readFile(stateFile, 'utf8');
       const state = JSON.parse(content);
       stateCache.set(key, state);
-      addLog('info', `📂 Loaded sync state for ${key}: ${state.history.length} history items`);
+      log.state.info(`Loaded sync state for ${key}: ${state.history.length} history items`);
     } else {
       // Initialize empty state
       stateCache.set(key, { activeSync: null, history: [] });
     }
   } catch (e) {
-    addLog('warning', `⚠️ Failed to load sync state for ${key}: ${e.message}`);
+    log.state.warn(`Failed to load sync state for ${key}: ${e.message}`);
     stateCache.set(key, { activeSync: null, history: [] });
   }
+  
+  return stateCache.get(key);
 }
 
 /**
@@ -67,7 +74,7 @@ async function saveState(key) {
 
   const requirementPath = requirementPathCache.get(key);
   if (!requirementPath) {
-    addLog('warning', `⚠️ Cannot save state: requirement path not cached for ${key}`);
+    log.state.warn(`Cannot save state: requirement path not cached for ${key}`);
     return;
   }
 
@@ -82,9 +89,16 @@ async function saveState(key) {
     }
 
     const stateFile = getStateFile(requirementPath);
-    await writeFile(stateFile, JSON.stringify(state, null, 2), 'utf8');
+    const tempFile = stateFile + '.tmp';
+    
+    // Atomic write: write to temp file first, then rename
+    await writeFile(tempFile, JSON.stringify(state, null, 2), 'utf8');
+    
+    // Rename is atomic on most filesystems
+    const { rename } = await import('fs/promises');
+    await rename(tempFile, stateFile);
   } catch (e) {
-    addLog('error', `❌ Failed to save sync state for ${key}: ${e.message}`);
+    log.state.error(`Failed to save sync state for ${key}: ${e.message}`);
   }
 }
 
@@ -98,6 +112,9 @@ async function getState(key) {
       // Extract workspaceId and requirementId from key
       const [workspaceId, requirementId] = key.split(':');
       await loadState(workspaceId, requirementId, requirementPath);
+    } else {
+      // No path cached, return empty state
+      return { activeSync: null, history: [] };
     }
   }
   return stateCache.get(key) || { activeSync: null, history: [] };
@@ -105,9 +122,24 @@ async function getState(key) {
 
 /**
  * Get active sync task
+ * This function will attempt to load state from disk if not cached
  */
 export async function getActiveSync(workspaceId, requirementId) {
   const key = getRequirementKey(workspaceId, requirementId);
+  
+  // 如果缓存中没有，尝试从磁盘加载
+  if (!stateCache.has(key)) {
+    // 需要找到 requirement 路径
+    // 这个信息需要从外部传入或者从工作区配置中查找
+    // 暂时返回 null，让调用者处理
+    log.state.info(`getActiveSync: state not cached for ${key}, need to load from disk`);
+    
+    // 尝试从可能的路径加载
+    // 这里需要知道 workspace 的路径和 docs 目录结构
+    // 由于没有这些信息，返回 null
+    return null;
+  }
+  
   const state = await getState(key);
   return state.activeSync;
 }
@@ -117,7 +149,7 @@ export async function getActiveSync(workspaceId, requirementId) {
  */
 export async function setActiveSync(sync, requirementPath) {
   if (!sync?.workspaceId || !sync?.requirementId) {
-    addLog('warning', '⚠️ setActiveSync called without required fields');
+    log.state.warn('setActiveSync called without required fields');
     return;
   }
 
@@ -166,7 +198,7 @@ export async function completeSync(syncId) {
   state.activeSync = null;
   
   await saveState(targetKey);
-  addLog('info', `✅ Sync ${syncId} completed and added to history for ${targetKey}`);
+  log.state.info(`Sync ${syncId} completed and added to history for ${targetKey}`);
 }
 
 /**
@@ -216,3 +248,4 @@ export async function deleteSyncFromHistory(syncId, workspaceId, requirementId) 
   state.history = state.history.filter(s => s.id !== syncId);
   await saveState(key);
 }
+

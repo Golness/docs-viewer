@@ -9,8 +9,9 @@ import { loadConfig } from '../config.js';
 import { buildTree, countRequirements, findRequirementPath } from '../tree.js';
 import { walkDocs, isInside, json, readBody } from '../utils.js';
 import { getCached, setCached } from '../cache.js';
-import { addLog } from '../logger.js';
+import { log } from '../logger.js';
 import { SUPPORTED_DOC_EXTS } from '../tree.js';
+import { rebuildIndex, loadIndex } from '../index-manager.js';
 
 export function createTreeRoutes(registry) {
   return [
@@ -32,6 +33,167 @@ export function createTreeRoutes(registry) {
           path: w.path
         }));
         json(res, items);
+      }
+    },
+
+    // POST /rebuild-index - 重建搜索索引
+    {
+      kind: 'exact',
+      path: '/req-hub/rebuild-index',
+      async handler(req, res) {
+        if (req.method !== 'POST') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const body = await readBody(req);
+          const { workspaceId } = JSON.parse(body);
+
+          if (!workspaceId) {
+            json(res, { error: 'missing workspaceId' }, 400);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { error: 'workspace not found' }, 404);
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          const tree = await buildTree(docsRoot);
+
+          const startTime = Date.now();
+          await rebuildIndex(docsRoot, tree);
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+          log.index.info(`索引重建完成 (${elapsed}s)`);
+          json(res, { success: true, elapsed });
+        } catch (e) {
+          log.index.error(`索引重建失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
+      }
+    },
+
+    // GET /index-data - 获取索引详情
+    {
+      kind: 'exact',
+      path: '/req-hub/index-data',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const url = new URL(req.url, 'http://localhost');
+          const workspaceId = url.searchParams.get('workspaceId');
+
+          if (!workspaceId) {
+            json(res, { error: 'missing workspaceId' }, 400);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { error: 'workspace not found' }, 404);
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          
+          const index = await loadIndex(docsRoot);
+          if (!index) {
+            json(res, { error: '索引文件不存在，请先重建索引' }, 404);
+            return;
+          }
+
+          json(res, index);
+        } catch (e) {
+          log.index.error(`读取索引失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
+      }
+    },
+
+    // POST /open-in-explorer - 在文件资源管理器中打开目录
+    {
+      kind: 'exact',
+      path: '/req-hub/open-in-explorer',
+      async handler(req, res) {
+        if (req.method !== 'POST') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const body = await readBody(req);
+          const { workspaceId, requirementId } = JSON.parse(body);
+
+          if (!workspaceId || !requirementId) {
+            json(res, { error: 'missing workspaceId or requirementId' }, 400);
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { error: 'workspace not found' }, 404);
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir);
+          const tree = await buildTree(docsRoot);
+
+          // 查找需求目录路径
+          const reqPath = findRequirementPath(docsRoot, tree, requirementId);
+          if (!reqPath) {
+            json(res, { error: 'requirement not found' }, 404);
+            return;
+          }
+
+          const fullPath = reqPath.path;
+
+          // 使用 spawn 打开文件资源管理器（不等待进程结束）
+          const { spawn } = await import('child_process');
+
+          let command, args;
+          if (process.platform === 'win32') {
+            command = 'explorer';
+            args = [fullPath];
+          } else if (process.platform === 'darwin') {
+            command = 'open';
+            args = [fullPath];
+          } else {
+            command = 'xdg-open';
+            args = [fullPath];
+          }
+
+          try {
+            const child = spawn(command, args, {
+              detached: true,
+              stdio: 'ignore'
+            });
+            child.unref();
+            json(res, { success: true, path: fullPath });
+          } catch (e) {
+            log.tree.error(`打开文件资源管理器失败: ${e.message}`);
+            json(res, { error: e.message }, 500);
+          }
+        } catch (e) {
+          log.tree.error(`打开文件资源管理器失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
       }
     },
 
@@ -86,7 +248,7 @@ export function createTreeRoutes(registry) {
           setCached(cacheKey, stats);
           json(res, stats);
         } catch (e) {
-          addLog('error', `❌ 获取统计信息失败: ${e.message}`);
+          log.tree.error(`获取统计信息失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
@@ -332,10 +494,10 @@ export function createTreeRoutes(registry) {
           }
 
           await mkdir(targetPath, { recursive: true });
-          addLog('success', `📁 创建目录: ${developer}/${dirName}`);
+          log.tree.info(`创建目录: ${developer}/${dirName}`);
           json(res, { success: true, path: relative(docsRoot, targetPath), fullPath: targetPath });
         } catch (e) {
-          addLog('error', `❌ 创建目录失败: ${e.message}`);
+          log.tree.error(`创建目录失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }

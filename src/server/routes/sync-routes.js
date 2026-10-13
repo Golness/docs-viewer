@@ -1,5 +1,6 @@
 /**
  * 文档同步相关路由
+ * 所有 LLM 调用统一委托给 DSH Subagent
  */
 
 import { resolve } from 'node:path';
@@ -7,13 +8,13 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadConfig } from '../config.js';
 import { findRequirementDir } from '../doc-reader.js';
-import { getBranchCommits, getBranchCodeDiff, buildSyncPrompt, parseSyncResponse, buildSyncLog, findBranchByRequirement } from '../sync-engine.js';
+import { getBranchCommits, getBranchCodeDiff, getUncommittedChanges, getFullCodeDiff, buildSyncVariables, parseSyncResponse, buildSyncLog, findBranchByRequirement } from '../sync-engine.js';
 import { PhasedSyncEngine } from '../phased-sync-engine.js';
 import { listRelatedSessions } from '../session-selector.js';
-import { extractMultipleSessions } from '../content-extractor.js';
-import { callLLM } from '../ai-engine.js';
+import { extractSessionTurns, extractMultipleSessionTurns, calculateTurnsTokens } from '../session-utils.js';
+import { executeTask } from '../task-executor.js';
 import { json, readBody } from '../utils.js';
-import { addLog } from '../logger.js';
+import { log } from '../logger.js';
 import { 
   loadState, 
   getActiveSync, 
@@ -25,11 +26,13 @@ import {
 } from '../sync-state.js';
 import { buildTree } from '../tree.js';
 import { rebuildIndex } from '../index-manager.js';
-import { readRequirementDocs, writeMetaJson } from '../doc-reader.js';
-import { validateMeta } from '../meta.js';
-import { parseAIResponse } from '../ai-engine.js';
+import { analyzeRequirement } from '../analyze-engine.js';
+import { charsToTokens, estimateTextTokens, formatTokens } from '../token-utils.js';
 
-export function createSyncRoutes(registry, llm, ctx) {
+export function createSyncRoutes(registry, llm, sessions, agents, ctx) {
+  // 从 ctx 获取 sessionQuery 服务
+  const sessionQuery = ctx?.sessionQuery;
+  
   return [
     // GET /git-branch - 获取 Git 分支信息
     {
@@ -163,10 +166,10 @@ export function createSyncRoutes(registry, llm, ctx) {
         }
 
         try {
-          const sessions = await listRelatedSessions(ctx, workspace.path, { limit, query });
-          json(res, { sessions });
+          const sessionsList = await listRelatedSessions(sessions, workspace.path, { limit, query, sessionQuery });
+          json(res, { sessions: sessionsList });
         } catch (e) {
-          addLog('error', `❌ 获取会话列表失败: ${e.message}`);
+          log.sync.error(`获取会话列表失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
@@ -192,40 +195,59 @@ export function createSyncRoutes(registry, llm, ctx) {
         }
 
         try {
-          const sessionQuery = ctx?.sessionQuery;
-          if (!sessionQuery) {
-            json(res, { error: 'sessionQuery 服务不可用' }, 500);
+          // 优先使用 sessionQuery 服务（支持持久化会话）
+          if (sessionQuery) {
+            try {
+              const titleObservation = await sessionQuery.readTitleSnapshot(sessionId);
+              if (titleObservation && titleObservation.session) {
+                const header = titleObservation.session;
+                json(res, {
+                  session: {
+                    id: header.id,
+                    title: titleObservation.title?.title || '(无标题)',
+                    cwd: header.cwd || '',
+                    createdAt: header.createdAt,
+                    parentSession: header.parentSession || null,
+                  }
+                });
+                return;
+              }
+            } catch (e) {
+              // sessionQuery 失败，尝试 sessions 服务
+              log.sync.debug(`sessionQuery 获取会话失败: ${e.message}，尝试 sessions 服务`);
+            }
+          }
+          
+          // 使用 sessions 服务获取活跃会话
+          if (!sessions) {
+            log.sync.error('sessions 和 sessionQuery 服务都不可用');
+            json(res, { error: '会话服务不可用' }, 500);
             return;
           }
 
-          // 读取会话详情
-          const snapshot = await sessionQuery.readSession(sessionId);
-          const header = snapshot.session;
-
-          // 获取会话标题
-          let title;
-          try {
-            const titleData = await sessionQuery.readTitle(header.id);
-            if (titleData && typeof titleData === 'string') {
-              title = titleData;
-            } else if (titleData && typeof titleData === 'object') {
-              title = titleData.text || titleData.title || titleData.name || '(无标题)';
-            }
-          } catch (e) {
-            title = '(无标题)';
+          // 尝试获取活跃会话
+          const session = sessions.get(sessionId);
+          if (!session) {
+            log.sync.error(`会话不存在或已关闭: ${sessionId}`);
+            json(res, { error: '会话不存在或已关闭', sessionId }, 404);
+            return;
           }
 
+          const header = session.header;
+          log.sync.debug(`获取到活跃会话`, { sessionId, cwd: header.cwd });
+
+          // 返回会话信息
           json(res, {
             session: {
               id: header.id,
-              title,
+              title: '(当前会话)', // 活跃会话没有标题存储
               cwd: header.cwd || '',
               createdAt: header.createdAt,
               parentSession: header.parentSession || null,
             }
           });
         } catch (e) {
-          console.error('[DEBUG] 获取会话详情失败:', e);
+          log.sync.error(`获取会话详情失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
@@ -243,17 +265,63 @@ export function createSyncRoutes(registry, llm, ctx) {
         }
 
         try {
-          const sessionQuery = ctx?.sessionQuery;
-          if (!sessionQuery) {
-            json(res, { error: 'sessionQuery 服务不可用' }, 500);
+          // 优先使用 sessionQuery 服务
+          if (sessionQuery) {
+            try {
+              const allRecords = await sessionQuery.listSessions();
+              
+              if (!allRecords || allRecords.length === 0) {
+                json(res, { session: null, debug: { message: '没有找到任何会话' } });
+                return;
+              }
+
+              // 过滤主会话（没有 parentSession）
+              const mainRecords = allRecords
+                .filter(r => !r.header.parentSession)
+                .sort((a, b) => (b.header.createdAt || 0) - (a.header.createdAt || 0));
+
+              if (mainRecords.length === 0) {
+                json(res, { session: null, debug: { message: '没有找到主会话' } });
+                return;
+              }
+
+              const latest = mainRecords[0];
+              const header = latest.header;
+
+              // 获取标题
+              let title = '(无标题)';
+              try {
+                const titleSnapshot = await sessionQuery.readTitle(header.id);
+                title = titleSnapshot?.title || '(无标题)';
+              } catch (e) {}
+
+              json(res, {
+                session: {
+                  id: header.id,
+                  title,
+                  cwd: header.cwd || '',
+                  createdAt: header.createdAt,
+                  parentSession: header.parentSession || null,
+                  isLive: latest.live,
+                }
+              });
+              return;
+            } catch (e) {
+              log.sync.debug(`sessionQuery 获取当前会话失败: ${e.message}，尝试 sessions 服务`);
+            }
+          }
+          
+          // 后备：使用 sessions 服务
+          if (!sessions) {
+            json(res, { error: 'sessions 和 sessionQuery 服务都不可用' }, 500);
             return;
           }
 
-          // 获取所有会话（参考同步功能的实现）
-          const allSessions = await sessionQuery.filterSessions([]);
+          // 获取所有活跃会话
+          const allSessions = sessions.list();
           
           if (!allSessions || allSessions.length === 0) {
-            json(res, { session: null, debug: { message: '没有找到任何会话' } });
+            json(res, { session: null, debug: { message: '没有找到任何活跃会话' } });
             return;
           }
 
@@ -277,38 +345,17 @@ export function createSyncRoutes(registry, llm, ctx) {
           const latestSession = mainSessions[0];
           const header = latestSession.header;
 
-          // 获取会话标题
-          let title;
-          try {
-            const titleData = await sessionQuery.readTitle(header.id);
-            if (titleData && typeof titleData === 'string') {
-              title = titleData;
-            } else if (titleData && typeof titleData === 'object') {
-              title = titleData.text || titleData.title || titleData.name || '(无标题)';
-            }
-          } catch (e) {
-            title = '(无标题)';
-          }
-
           json(res, {
             session: {
               id: header.id,
-              title,
+              title: '(当前会话)',
               cwd: header.cwd || '',
               createdAt: header.createdAt,
-            },
-            debug: {
-              totalSessions: allSessions.length,
-              mainSessions: mainSessions.length,
-              matchedSession: {
-                id: header.id,
-                cwd: header.cwd,
-                parentSession: header.parentSession
-              }
+              parentSession: header.parentSession || null,
             }
           });
         } catch (e) {
-          console.error('[DEBUG] 获取当前会话失败:', e);
+          log.sync.error(`获取当前会话失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
@@ -327,6 +374,7 @@ export function createSyncRoutes(registry, llm, ctx) {
 
         const url = new URL(req.url, 'http://localhost');
         const sessionId = url.searchParams.get('sessionId');
+        const debug = url.searchParams.get('debug') === 'true';
 
         if (!sessionId) {
           json(res, { error: 'missing sessionId' }, 400);
@@ -334,11 +382,33 @@ export function createSyncRoutes(registry, llm, ctx) {
         }
 
         try {
-          const { getSessionTurnsPreview } = await import('../content-extractor.js');
-          const preview = await getSessionTurnsPreview(ctx, sessionId);
-          json(res, preview);
+          // 调试模式：返回原始事件数据
+          if (debug) {
+            const logSnapshot = await sessionQuery.readSession(sessionId);
+            const events = logSnapshot.events;
+            const userMsgs = events.filter(e => e.type === 'user/message');
+            json(res, {
+              eventCount: events.length,
+              eventTypes: [...new Set(events.map(e => e.type))],
+              userMessageCount: userMsgs.length,
+              firstUserMessage: userMsgs[0] || null,
+              secondUserMessage: userMsgs[1] || null,
+            });
+            return;
+          }
+          
+          // 使用统一的提取方法
+          const turns = await extractSessionTurns(sessionQuery, sessionId);
+          const totalTokens = calculateTurnsTokens(turns);
+          
+          json(res, {
+            success: true,
+            turns,
+            turnCount: turns.length,
+            totalTokens,
+          });
         } catch (e) {
-          addLog('error', `❌ 获取会话轮次失败: ${e.message}`);
+          log.sync.error(`获取会话轮次失败: ${e.message}`);
           json(res, { success: false, error: e.message }, 500);
         }
       }
@@ -458,7 +528,7 @@ export function createSyncRoutes(registry, llm, ctx) {
               return;
             }
 
-            sendEvent({ type: 'status', text: `✅ 代码变更: ${codeDiff.length} 字符` });
+            sendEvent({ type: 'status', text: `✅ 代码变更: 约 ${formatTokens(charsToTokens(codeDiff.length))} tokens` });
 
             // Step 5: Read current document
             sendEvent({ type: 'status', text: `📖 读取当前${docType === 'requirement' ? '需求' : '技术'}文档...` });
@@ -479,18 +549,38 @@ export function createSyncRoutes(registry, llm, ctx) {
 
             sendEvent({ type: 'status', text: '🧠 AI 正在分析差异...' });
 
-            // Step 6: Build prompt
-            const prompt = buildSyncPrompt(docType, currentDoc, commits, codeDiff, config);
+            // Step 6: 构建模板变量
+            const variables = buildSyncVariables(docType, currentDoc, commits, codeDiff, config);
 
-            // Step 7: Call LLM
+            // Step 7: Call LLM via TaskExecutor
             sendEvent({ type: 'stream_start' });
+            
+            // 需要获取父 Agent
+            const parentAgent = agents?.get(sessionId);
+            if (!parentAgent) {
+              sendEvent({ type: 'error', error: '会话不存在或已结束，请在活跃的 DSH 会话中调用此功能' });
+              res.end();
+              return;
+            }
+
             let content = '';
             try {
-              content = await callLLM(llm, prompt, config, {
-                onStream: (text) => {
-                  sendEvent({ type: 'stream_delta', text });
-                }
+              const result = await executeTask(ctx, llm, config, {
+                promptKey: 'sync',
+                variables,  // 使用模板变量
+                parentAgent,
+                cwd: workspace.path,
+                description: `同步${docType === 'requirement' ? '需求' : '技术'}文档`,
               });
+              
+              if (result.isError) {
+                sendEvent({ type: 'error', error: result.diagnostic || 'AI 分析失败' });
+                res.end();
+                return;
+              }
+              
+              content = result.output;
+              sendEvent({ type: 'stream_delta', text: content });
               sendEvent({ type: 'stream_end', text: content });
             } catch (e) {
               sendEvent({ type: 'error', error: `LLM 错误: ${e.message}` });
@@ -519,7 +609,7 @@ export function createSyncRoutes(registry, llm, ctx) {
             const syncLog = buildSyncLog(docType, commits, syncResult);
             await writeFile(syncLogPath, syncLog, 'utf8');
 
-            addLog('success', `✅ ${docType === 'requirement' ? '需求' : '技术'}文档同步完成`);
+            log.sync.info(`${docType === 'requirement' ? '需求' : '技术'}文档同步完成`);
 
             sendEvent({
               type: 'done',
@@ -531,7 +621,7 @@ export function createSyncRoutes(registry, llm, ctx) {
 
             res.end();
           } catch (e) {
-            addLog('error', `❌ 文档同步失败: ${e.message}`);
+            log.sync.error(`文档同步失败: ${e.message}`);
             if (res.headersSent) {
               try {
                 res.write(`data: ${JSON.stringify({ type: 'error', error: e.message })}\n\n`);
@@ -556,6 +646,9 @@ export function createSyncRoutes(registry, llm, ctx) {
           return;
         }
 
+        // 从请求头获取当前会话 ID（用于获取 parentAgent）
+        const sessionId = req.headers['x-session-id'];
+        
         let body = '';
         req.on('data', chunk => {
           body += chunk;
@@ -583,9 +676,14 @@ export function createSyncRoutes(registry, llm, ctx) {
             }
 
             // Check if there's already an active sync
-            const existingActive = getActiveSync();
-            if (existingActive) {
-              json(res, { error: '已有同步任务正在执行中', syncId: existingActive.id }, 409);
+            const existingActive = await getActiveSync(workspaceId, requirementId);
+            if (existingActive && existingActive.status === 'running') {
+              // 返回活动同步信息，让前端可以跳转到进度页面
+              json(res, { 
+                active: true, 
+                sync: existingActive,
+                message: '已有同步任务正在执行中'
+              }, 200);
               return;
             }
 
@@ -603,21 +701,19 @@ export function createSyncRoutes(registry, llm, ctx) {
               startedAt: Date.now(),
               status: 'running', // running | completed | failed
               steps: [
-                { phase: 'init', label: '🔧 初始化', status: 'pending', text: '', files: [] },
-                { phase: 'session_extract', label: '📖 会话提取', status: 'pending', text: '', files: [] },
-                { phase: 'code_analysis', label: '💻 代码分析', status: 'pending', text: '', files: [] },
-                { phase: 'discussion_analysis', label: '💬 对话分析', status: 'pending', text: '', files: [] },
-                { phase: 'merge', label: '🔀 增量合并', status: 'pending', text: '', files: [] },
-                { phase: 'save', label: '💾 保存文件', status: 'pending', text: '', files: [] },
-                ...(runAnalysis ? [{ phase: 'analysis', label: '🧠 构建分析', status: 'pending', text: '', files: [] }] : []),
-                ...(runIndex ? [{ phase: 'index', label: '📊 构建索引', status: 'pending', text: '', files: [] }] : []),
+                { phase: 'init', label: '🔧 初始化', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'session_extract', label: '📖 会话提取', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'code_analysis', label: '💻 代码差异分析', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'discussion_analysis', label: '💬 讨论差异分析', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'merge', label: '🔀 增量合并', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'save', label: '💾 保存文件', status: 'pending', text: '', files: [], chunks: null },
+                ...(runAnalysis ? [{ phase: 'analysis', label: '🧠 构建分析', status: 'pending', text: '', files: [], chunks: null }] : []),
+                ...(runIndex ? [{ phase: 'index', label: '📊 构建索引', status: 'pending', text: '', files: [], chunks: null }] : []),
               ],
               generatedFiles: [],
               runAnalysis,
               runIndex,
             };
-
-            await setActiveSync(syncTask, reqDir);
 
             // Set up SSE
             res.writeHead(200, {
@@ -675,6 +771,9 @@ export function createSyncRoutes(registry, llm, ctx) {
               res.end();
               return;
             }
+            
+            // 现在有了 reqDir，保存活动同步
+            await setActiveSync(syncTask, reqDir);
 
             // Find branch by requirement name
             const branchName = await findBranchByRequirement(workspace.path, requirementId);
@@ -701,18 +800,10 @@ export function createSyncRoutes(registry, llm, ctx) {
               return;
             }
 
-            if (!commits || commits.length === 0) {
-              await updateStep('init', { status: 'failed', text: '该分支没有提交记录' });
-              syncTask.status = 'failed';
-              await completeSync(syncId);
-              sendEvent({ type: 'error', error: '该分支没有提交记录' });
-              res.end();
-              return;
-            }
-
-            let codeDiff;
+            // 获取完整代码差异（包括已提交和未提交的）
+            let fullCodeDiff;
             try {
-              codeDiff = await getBranchCodeDiff(workspace.path, branchName);
+              fullCodeDiff = await getFullCodeDiff(workspace.path, branchName);
             } catch (e) {
               await updateStep('init', { status: 'failed', text: `获取代码变更失败: ${e.message}` });
               syncTask.status = 'failed';
@@ -722,6 +813,9 @@ export function createSyncRoutes(registry, llm, ctx) {
               return;
             }
 
+            const { committedDiff, uncommittedChanges, combined: codeDiff } = fullCodeDiff;
+
+            // 只要有代码变更（已提交或未提交），就继续
             if (!codeDiff || codeDiff.trim().length === 0) {
               await updateStep('init', { status: 'failed', text: '没有检测到代码变更' });
               syncTask.status = 'failed';
@@ -748,50 +842,47 @@ export function createSyncRoutes(registry, llm, ctx) {
               }
             }
 
+            // 构建初始化完成信息
+            let initText = '';
+            if (commits && commits.length > 0) {
+              initText = `${commits.length} 个提交`;
+            } else {
+              initText = '无提交记录';
+            }
+            if (uncommittedChanges.hasChanges) {
+              const parts = [];
+              if (uncommittedChanges.staged) parts.push('已暂存');
+              if (uncommittedChanges.unstaged) parts.push('未暂存');
+              if (uncommittedChanges.untracked.length > 0) parts.push(`${uncommittedChanges.untracked.length} 个新文件`);
+              initText += `，未提交变更: ${parts.join('、')}`;
+            }
+            initText += `，代码变更约 ${formatTokens(charsToTokens(codeDiff.length))} tokens`;
+            if (isNewDoc) initText += '，新建文档';
+
             await updateStep('init', { 
               status: 'completed', 
-              text: `${commits.length} 个提交，代码变更 ${codeDiff.length} 字符${isNewDoc ? '，新建文档' : ''}` 
+              text: initText,
+              hasUncommitted: uncommittedChanges.hasChanges,
             });
 
             // ─── Step 2: Session Extract ──────────────────────────
-            let sessionMessages = [];
+            let sessionTurns = [];
             if (sessionIds.length > 0) {
               await updateStep('session_extract', { status: 'running', text: `提取 ${sessionIds.length} 个会话内容...` });
               
               try {
-                const extracted = await extractMultipleSessions(ctx, sessionIds, {
-                  maxContentLength: 100000,
+                // 使用统一的提取方法，分析时不截断摘要（maxSummaryChars: -1）
+                const result = await extractMultipleSessionTurns(sessionQuery, sessionIds, { 
+                  maxSummaryChars: -1 // 不截断
                 });
-                
-                sessionMessages = [];
-                for (const turn of extracted.turns) {
-                  if (turn.userInput) {
-                    sessionMessages.push({
-                      role: 'user',
-                      text: turn.userInput,
-                      time: turn.time,
-                      sessionId: turn.sessionId,
-                      turnNumber: turn.turnNumber,
-                    });
-                  }
-                  if (turn.summary) {
-                    sessionMessages.push({
-                      role: 'assistant',
-                      text: turn.summary,
-                      time: turn.endTime || turn.time,
-                      sessionId: turn.sessionId,
-                      turnNumber: turn.turnNumber,
-                      isSummary: true,
-                    });
-                  }
-                }
+                sessionTurns = result.turns;
                 
                 await updateStep('session_extract', { 
                   status: 'completed', 
-                  text: `${extracted.turns.length} 个轮次，${extracted.totalLength} 字符` 
+                  text: `${sessionTurns.length} 个轮次，约 ${formatTokens(result.totalTokens)} tokens` 
                 });
               } catch (e) {
-                addLog('warning', `⚠️ 提取会话内容失败: ${e.message}`);
+                log.sync.warn(`提取会话内容失败: ${e.message}`);
                 await updateStep('session_extract', { status: 'failed', text: `提取失败: ${e.message}` });
               }
             } else {
@@ -799,8 +890,6 @@ export function createSyncRoutes(registry, llm, ctx) {
             }
 
             // ─── Step 3-5: Run phased sync engine ────────────────
-            await updateStep('code_analysis', { status: 'running', text: 'AI 分析代码变更...' });
-
             // 创建同步目录（提前创建，用于保存中间结果）
             const timestamp = Date.now();
             const syncDirName = `sync-${timestamp}`;
@@ -810,52 +899,97 @@ export function createSyncRoutes(registry, llm, ctx) {
             await mkdir(syncBaseDir, { recursive: true });
             await mkdir(syncDir, { recursive: true });
 
-            const engine = new PhasedSyncEngine(llm, config);
+            // 获取父 Agent（用于 subagent 委托）
+            const parentAgent = agents?.get(sessionId);
+            if (!parentAgent) {
+              await updateStep('code_analysis', { status: 'failed', text: '会话不存在或已结束，请在活跃的 DSH 会话中调用此功能' });
+              syncTask.status = 'failed';
+              await completeSync(syncId);
+              sendEvent({ type: 'error', error: '会话不存在或已结束，请在活跃的 DSH 会话中调用此功能' });
+              res.end();
+              return;
+            }
+
+            const engine = new PhasedSyncEngine({
+              llm,
+              config,
+              cwd: workspace.path,
+              ctx,
+              parentAgent,
+            });
             
             const result = await engine.sync({
               docType,
               currentDoc,
               commits,
               codeDiff,
-              sessionMessages,
+              sessionTurns,
+              hasUncommitted: uncommittedChanges.hasChanges,
               onProgress: async (progress) => {
                 // Map engine progress to our step system
                 const { phase, status, content } = progress;
+                
+                // 处理 code_analysis 阶段
                 if (phase === 'code_analysis') {
                   if (status === 'started') {
-                    updateStep('code_analysis', { status: 'running', text: 'AI 分析代码变更...' });
+                    updateStep('code_analysis', { 
+                      status: 'running', 
+                      text: `AI 分析代码差异点... (约 ${formatTokens(progress.codeTokens)} tokens，${progress.codeFiles} 个文件)`,
+                    });
+                  } else if (status === 'chunked') {
+                    // 分块信息
+                    updateStep('code_analysis', { 
+                      text: `代码分块完成，共 ${progress.totalChunks} 块`,
+                      chunks: progress.chunks,
+                      totalTokens: progress.totalTokens,
+                    });
                   } else if (status === 'processing_chunk') {
-                    updateStep('code_analysis', { text: progress.message || '分析中...' });
+                    updateStep('code_analysis', { 
+                      text: progress.message || '分析差异点中...',
+                      chunkInfo: progress.chunkInfo,
+                    });
                   } else if (status === 'merging_chunks') {
-                    updateStep('code_analysis', { text: '合并分析结果...' });
+                    updateStep('code_analysis', { text: '合并差异点...' });
                   } else if (status === 'completed') {
-                    updateStep('code_analysis', { status: 'completed', text: '代码分析完成' });
-                    // 立即保存代码分析文件
+                    updateStep('code_analysis', { status: 'completed', text: '代码差异分析完成' });
+                    // 立即保存代码差异分析文件
                     if (content) {
-                      const codeAnalysisPath = join(syncDir, 'code-analysis.md');
+                      const codeAnalysisPath = join(syncDir, 'code-diffs.md');
                       await writeFile(codeAnalysisPath, content, 'utf8');
-                      await addFile('code_analysis', `sync-logs/${syncDirName}/code-analysis.md`);
+                      await addFile('code_analysis', `sync-logs/${syncDirName}/code-diffs.md`);
                     }
                   } else if (status === 'failed') {
-                    updateStep('code_analysis', { status: 'failed', text: '代码分析失败' });
+                    updateStep('code_analysis', { status: 'failed', text: '代码差异分析失败' });
                   }
-                } else if (phase === 'discussion_analysis') {
+                } 
+                // 处理 discussion_analysis 阶段
+                else if (phase === 'discussion_analysis') {
                   if (status === 'started') {
-                    updateStep('discussion_analysis', { status: 'running', text: 'AI 分析对话内容...' });
+                    updateStep('discussion_analysis', { status: 'running', text: 'AI 分析讨论差异点...' });
+                  } else if (status === 'chunked') {
+                    // 分块信息
+                    updateStep('discussion_analysis', { 
+                      text: `讨论分块完成，共 ${progress.totalChunks} 块`,
+                      chunks: progress.chunks,
+                      totalTokens: progress.totalTokens,
+                    });
                   } else if (status === 'processing_chunk') {
-                    updateStep('discussion_analysis', { text: progress.message || '分析中...' });
+                    updateStep('discussion_analysis', { 
+                      text: progress.message || '分析差异点中...',
+                      chunkInfo: progress.chunkInfo,
+                    });
                   } else if (status === 'merging_chunks') {
-                    updateStep('discussion_analysis', { text: '合并分析结果...' });
+                    updateStep('discussion_analysis', { text: '合并差异点...' });
                   } else if (status === 'completed') {
-                    updateStep('discussion_analysis', { status: 'completed', text: '对话分析完成' });
-                    // 立即保存对话分析文件
+                    updateStep('discussion_analysis', { status: 'completed', text: '讨论差异分析完成' });
+                    // 立即保存讨论差异分析文件
                     if (content) {
-                      const discussionAnalysisPath = join(syncDir, 'discussion-analysis.md');
+                      const discussionAnalysisPath = join(syncDir, 'discussion-diffs.md');
                       await writeFile(discussionAnalysisPath, content, 'utf8');
-                      await addFile('discussion_analysis', `sync-logs/${syncDirName}/discussion-analysis.md`);
+                      await addFile('discussion_analysis', `sync-logs/${syncDirName}/discussion-diffs.md`);
                     }
                   } else if (status === 'failed') {
-                    updateStep('discussion_analysis', { status: 'failed', text: '对话分析失败' });
+                    updateStep('discussion_analysis', { status: 'failed', text: '讨论差异分析失败' });
                   }
                 } else if (phase === 'merge') {
                   if (status === 'started') {
@@ -869,13 +1003,13 @@ export function createSyncRoutes(registry, llm, ctx) {
               }
             });
 
-            // Update discussion_analysis step if no session messages
-            if (sessionMessages.length === 0) {
+            // Update discussion_analysis step if no session turns
+            if (sessionTurns.length === 0) {
               await updateStep('discussion_analysis', { status: 'skipped', text: '无对话内容' });
             }
 
             // ─── Step 6: Save files ──────────────────────────────
-            if (!result.finalDocument) {
+            if (!result.mergedDoc) {
               await updateStep('save', { status: 'failed', text: '同步失败：未能生成最终文档' });
               syncTask.status = 'failed';
               await completeSync(syncId);
@@ -887,7 +1021,7 @@ export function createSyncRoutes(registry, llm, ctx) {
             await updateStep('save', { status: 'running', text: '保存文件...' });
 
             // Save main document (always in reqDir root)
-            await writeFile(docPath, result.finalDocument, 'utf8');
+            await writeFile(docPath, result.mergedDoc, 'utf8');
             await addFile('save', docFileName);
 
             // Create sync log in sync subdirectory
@@ -922,36 +1056,31 @@ export function createSyncRoutes(registry, llm, ctx) {
                 if (!reqInfo) {
                   await updateStep('analysis', { status: 'failed', text: '未找到需求目录' });
                 } else {
-                  const reqPath = join(docsRoot, reqInfo.path);
-                  const docs = await readRequirementDocs(reqPath);
-                  
-                  if (!docs) {
-                    await updateStep('analysis', { status: 'failed', text: '未找到文档' });
+                  const parentAgent = agents?.get(sessionId);
+                  if (!parentAgent) {
+                    await updateStep('analysis', { status: 'failed', text: '会话不存在或已结束' });
                   } else {
-                    // Call LLM for analysis
-                    const { getPrompt } = await import('../prompts.js');
-                    const promptTemplate = getPrompt(config, 'analyze');
-                    
-                    const analysisResult = await callLLM(llm, docs, config, {
-                      systemPrompt: promptTemplate,
+                    const reqPath = join(docsRoot, reqInfo.path);
+                    const result = await analyzeRequirement({
+                      ctx,
+                      llm,
+                      config,
+                      parentAgent,
+                      reqPath,
+                      requirementId,
+                      cwd: workspace.path,
                     });
-                    
-                    // Parse and validate
-                    const parsed = parseAIResponse(analysisResult);
-                    const validation = validateMeta(parsed);
-                    
-                    if (validation.valid) {
-                      // Write .meta.json
-                      await writeMetaJson(reqPath, parsed);
+
+                    if (result.success) {
                       await addFile('analysis', '.meta.json');
-                      await updateStep('analysis', { status: 'completed', text: `分析完成：${parsed.summary || '已生成'}` });
+                      await updateStep('analysis', { status: 'completed', text: `分析完成：${result.meta?.summary || '已生成'}` });
                     } else {
-                      await updateStep('analysis', { status: 'failed', text: `分析结果无效：${validation.errors.join(', ')}` });
+                      await updateStep('analysis', { status: 'failed', text: result.error || '分析失败' });
                     }
                   }
                 }
               } catch (e) {
-                addLog('error', `❌ 构建分析失败: ${e.message}`);
+                log.analysis.error(`构建分析失败: ${e.message}`);
                 await updateStep('analysis', { status: 'failed', text: `分析失败: ${e.message}` });
               }
             }
@@ -970,7 +1099,7 @@ export function createSyncRoutes(registry, llm, ctx) {
                   text: `索引重建完成：${index.requirements.length} 需求，${Object.keys(index.featureIndex).length} 功能点` 
                 });
               } catch (e) {
-                addLog('error', `❌ 构建索引失败: ${e.message}`);
+                log.index.error(`构建索引失败: ${e.message}`);
                 await updateStep('index', { status: 'failed', text: `索引失败: ${e.message}` });
               }
             }
@@ -980,7 +1109,7 @@ export function createSyncRoutes(registry, llm, ctx) {
             syncTask.stats = result.stats;
             await completeSync(syncId);
 
-            addLog('success', `✅ ${docTypeName}分阶段同步完成`);
+            log.sync.info(`${docTypeName}分阶段同步完成`);
 
             sendEvent({
               type: 'done',
@@ -992,7 +1121,12 @@ export function createSyncRoutes(registry, llm, ctx) {
 
             res.end();
           } catch (e) {
-            addLog('error', `❌ 分阶段同步失败: ${e.message}`);
+            log.sync.error(`分阶段同步失败: ${e.message}`);
+            
+            // 标记任务失败并清理状态
+            syncTask.status = 'failed';
+            await completeSync(syncId);
+            
             if (res.headersSent) {
               try {
                 res.write(`data: ${JSON.stringify({ type: 'error', error: e.message })}\n\n`);
@@ -1026,8 +1160,29 @@ export function createSyncRoutes(registry, llm, ctx) {
           return;
         }
 
-        const activeSync = await getActiveSync(workspaceId, requirementId);
-        json(res, { active: !!activeSync, sync: activeSync });
+        try {
+          // 先找到 requirement 路径，然后加载状态
+          const workspace = registry.list().find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { active: false, sync: null });
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir || 'docs');
+          const reqDir = await findRequirementDir(docsRoot, requirementId);
+          
+          if (reqDir) {
+            // 加载状态
+            await loadState(workspaceId, requirementId, reqDir);
+          }
+
+          const activeSync = await getActiveSync(workspaceId, requirementId);
+          json(res, { active: !!activeSync, sync: activeSync });
+        } catch (e) {
+          log.sync.error(`获取活动同步失败: ${e.message}`);
+          json(res, { active: false, sync: null });
+        }
       }
     },
 
@@ -1131,10 +1286,45 @@ export function createSyncRoutes(registry, llm, ctx) {
           const content = await readFile(filePath, 'utf8');
           json(res, { content, fileName });
         } catch (e) {
-          addLog('error', `Failed to read sync file: ${e.message}`);
+          log.sync.error(`Failed to read sync file: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
     }
   ];
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,16 +1,18 @@
 /**
  * 搜索相关路由
+ * 所有 LLM 调用统一委托给 DSH Subagent
  */
 
 import { resolve } from 'node:path';
 import { loadConfig } from '../config.js';
 import { buildTree } from '../tree.js';
 import { loadIndex } from '../index-manager.js';
-import { callLLM, parseAIResponse } from '../ai-engine.js';
+import { executeTask } from '../task-executor.js';
+import { parseAIResponse } from '../ai-engine.js';
 import { json, readBody } from '../utils.js';
-import { addLog } from '../logger.js';
+import { log } from '../logger.js';
 
-export function createSearchRoutes(registry, llm) {
+export function createSearchRoutes(registry, llm, agents, ctx) {
   return [
     // GET /search - 精确搜索
     {
@@ -116,10 +118,22 @@ export function createSearchRoutes(registry, llm) {
 
         try {
           const body = await readBody(req);
-          const { workspaceId, query } = JSON.parse(body);
+          const { workspaceId, query, sessionId } = JSON.parse(body);
 
           if (!workspaceId || !query) {
             json(res, { error: 'missing workspaceId or query' }, 400);
+            return;
+          }
+
+          if (!sessionId) {
+            json(res, { error: 'missing sessionId - AI 搜索需要在 DSH 会话中调用' }, 400);
+            return;
+          }
+
+          // 获取父 Agent
+          const parentAgent = agents?.get(sessionId);
+          if (!parentAgent) {
+            json(res, { error: '会话不存在或已结束，请在活跃的 DSH 会话中调用此功能' }, 400);
             return;
           }
 
@@ -153,41 +167,38 @@ export function createSearchRoutes(registry, llm) {
 
           sendEvent({ type: 'status', text: '🧠 AI 正在分析...' });
 
-          // Build prompt
+          // 构建模板变量
           const requirementsSummary = index.requirements.map(r => 
             `- ${r.id}: ${r.title} (${r.developer})`
           ).join('\n');
 
-          const prompt = `你是一个需求搜索助手。用户查询: "${query}"
-
-可用需求列表:
-${requirementsSummary}
-
-请分析哪些需求与用户查询最相关，返回 JSON 格式:
-{
-  "results": [
-    {
-      "id": "需求ID",
-      "relevance": 0-100,
-      "reason": "相关原因"
-    }
-  ]
-}
-
-只返回 JSON，不要其他文字。`;
+          const variables = {
+            query,
+            requirementsSummary,
+          };
 
           sendEvent({ type: 'stream_start' });
 
           try {
-            const rawResponse = await callLLM(llm, prompt, config, {
-              onStream: (text) => {
-                sendEvent({ type: 'stream_delta', text });
-              }
+            // 使用 TaskExecutor 执行
+            const result = await executeTask(ctx, llm, config, {
+              promptKey: 'search',
+              variables,
+              parentAgent,
+              cwd: workspace.path,
+              description: 'AI 语义搜索',
             });
 
+            if (result.isError) {
+              sendEvent({ type: 'error', error: result.diagnostic || 'AI 分析失败' });
+              res.end();
+              return;
+            }
+
+            sendEvent({ type: 'stream_delta', text: result.output });
             sendEvent({ type: 'stream_end' });
 
-            const aiResult = parseAIResponse(rawResponse);
+            const aiResult = parseAIResponse(result.output);
             if (!aiResult || !aiResult.results) {
               sendEvent({ type: 'error', error: 'AI 返回格式错误' });
               res.end();
@@ -199,178 +210,29 @@ ${requirementsSummary}
               const req = index.requirements.find(req => req.id === r.id);
               return {
                 id: r.id,
-                relevance: r.relevance,
-                reason: r.reason,
                 developer: req?.developer,
                 date: req?.date,
                 title: req?.title,
-                features: req?.features || [],
-                fields: req?.fields || [],
-                tags: req?.tags || []
+                relevance: r.relevance,
+                reason: r.reason
               };
-            });
+            }).filter(r => r.id);
 
-            sendEvent({
-              type: 'done',
-              results,
-              total: results.length
+            sendEvent({ 
+              type: 'done', 
+              results, 
+              total: results.length,
+              elapsed: result.elapsed
             });
-
             res.end();
           } catch (e) {
             sendEvent({ type: 'error', error: e.message });
             res.end();
           }
         } catch (e) {
-          addLog('error', `❌ AI 搜索失败: ${e.message}`);
+          log.search.error(`AI 搜索失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
-      }
-    },
-
-    // GET /index-status - 获取索引状态
-    {
-      kind: 'exact',
-      path: '/req-hub/index-status',
-      async handler(req, res) {
-        if (req.method !== 'GET') {
-          res.writeHead(405);
-          res.end();
-          return;
-        }
-
-        const url = new URL(req.url, 'http://localhost');
-        const workspaceId = url.searchParams.get('workspaceId');
-
-        if (!workspaceId) {
-          json(res, { error: 'missing workspaceId' }, 400);
-          return;
-        }
-
-        const workspaces = registry.list();
-        const workspace = workspaces.find(w => w.id === workspaceId);
-
-        if (!workspace) {
-          json(res, { error: 'workspace not found' }, 404);
-          return;
-        }
-
-        const config = await loadConfig();
-        const docsRoot = resolve(workspace.path, config.docsDir);
-        const index = await loadIndex(docsRoot);
-
-        if (!index) {
-          json(res, { built: false });
-          return;
-        }
-
-        json(res, {
-          built: true,
-          builtAt: index.builtAt,
-          stats: {
-            requirements: index.requirements?.length || 0,
-            features: Object.keys(index.featureIndex || {}).length,
-            fields: Object.keys(index.fieldIndex || {}).length,
-            tags: Object.keys(index.tagIndex || {}).length
-          }
-        });
-      }
-    },
-
-    // POST /rebuild-index - 重建索引
-    {
-      kind: 'exact',
-      path: '/req-hub/rebuild-index',
-      async handler(req, res) {
-        if (req.method !== 'POST') {
-          res.writeHead(405);
-          res.end();
-          return;
-        }
-
-        try {
-          const body = await readBody(req);
-          const { workspaceId } = JSON.parse(body);
-
-          if (!workspaceId) {
-            json(res, { error: 'missing workspaceId' }, 400);
-            return;
-          }
-
-          const workspaces = registry.list();
-          const workspace = workspaces.find(w => w.id === workspaceId);
-
-          if (!workspace) {
-            json(res, { error: 'workspace not found' }, 404);
-            return;
-          }
-
-          const config = await loadConfig();
-          const docsRoot = resolve(workspace.path, config.docsDir);
-          const tree = await buildTree(docsRoot);
-
-          addLog('info', '🔨 开始重建索引...');
-          const startTime = Date.now();
-          
-          const index = await rebuildIndex(docsRoot, tree);
-          
-          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-          addLog('success', `✅ 索引重建完成 (${elapsed}s)`);
-
-          json(res, {
-            success: true,
-            elapsed: parseFloat(elapsed),
-            stats: {
-              requirements: index.requirements.length,
-              features: Object.keys(index.featureIndex).length,
-              fields: Object.keys(index.fieldIndex).length,
-              tags: Object.keys(index.tagIndex).length
-            }
-          });
-        } catch (e) {
-          addLog('error', `❌ 重建索引失败: ${e.message}`);
-          json(res, { error: e.message }, 500);
-        }
-      }
-    },
-
-    // GET /index-data - 获取索引数据
-    {
-      kind: 'exact',
-      path: '/req-hub/index-data',
-      async handler(req, res) {
-        if (req.method !== 'GET') {
-          res.writeHead(405);
-          res.end();
-          return;
-        }
-
-        const url = new URL(req.url, 'http://localhost');
-        const workspaceId = url.searchParams.get('workspaceId');
-
-        if (!workspaceId) {
-          json(res, { error: 'missing workspaceId' }, 400);
-          return;
-        }
-
-        const workspaces = registry.list();
-        const workspace = workspaces.find(w => w.id === workspaceId);
-
-        if (!workspace) {
-          json(res, { error: 'workspace not found' }, 404);
-          return;
-        }
-
-        const config = await loadConfig();
-        const docsRoot = resolve(workspace.path, config.docsDir);
-        const index = await loadIndex(docsRoot);
-
-        if (!index) {
-          json(res, { error: 'index not built' }, 400);
-          return;
-        }
-
-        json(res, index);
       }
     }
   ];

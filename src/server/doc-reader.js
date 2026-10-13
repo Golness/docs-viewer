@@ -5,7 +5,7 @@
 
 import { readdir, readFile, writeFile, stat, mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import { addLog } from './logger.js';
+import { log } from './logger.js';
 
 const MAX_DOC_CONTENT = 10000000; // 10MB
 const SUPPORTED_DOC_EXTS = ['.md', '.html', '.htm', '.txt', '.text', '.markdown'];
@@ -60,7 +60,7 @@ export async function readRequirementDocs(reqPath) {
   // Truncation protection
   if (docsContent.length > MAX_DOC_CONTENT) {
     docsContent = docsContent.slice(0, MAX_DOC_CONTENT) + '\n\n[内容已截断]';
-    addLog('warning', `⚠️ 文档内容超过 ${MAX_DOC_CONTENT} 字符，已截断`);
+    log.doc.warn(`文档内容超过 ${MAX_DOC_CONTENT} 字符，已截断`);
   }
 
   return docsContent;
@@ -97,7 +97,7 @@ export async function findRequirementDir(docsRoot, requirementId) {
       }
     }
   } catch (e) {
-    addLog('error', `findRequirementDir error: ${e.message}`);
+    log.doc.error(`findRequirementDir error: ${e.message}`);
   }
   return null;
 }

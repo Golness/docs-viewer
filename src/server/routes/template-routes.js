@@ -1,5 +1,6 @@
 /**
  * 模板生成相关路由
+ * 所有 LLM 调用统一委托给 DSH Subagent
  */
 
 import { resolve } from 'node:path';
@@ -8,9 +9,9 @@ import { join } from 'node:path';
 import { loadConfig } from '../config.js';
 import { buildTree, findRequirementPath } from '../tree.js';
 import { getPrompt } from '../prompts.js';
-import { callLLM } from '../ai-engine.js';
+import { executeTask } from '../task-executor.js';
 import { json, readBody } from '../utils.js';
-import { addLog } from '../logger.js';
+import { log } from '../logger.js';
 
 // 文档模板
 const REQUIREMENT_TEMPLATE = `# 需求文档
@@ -76,7 +77,7 @@ const TEMPLATES = {
   cr: CR_TEMPLATE
 };
 
-export function createTemplateRoutes(registry, llm) {
+export function createTemplateRoutes(registry, llm, agents, ctx) {
   return [
     // GET /templates - 获取模板列表
     {
@@ -125,7 +126,7 @@ export function createTemplateRoutes(registry, llm) {
 
         try {
           const body = await readBody(req);
-          const { workspaceId, requirementId, docType, useAI } = JSON.parse(body);
+          const { workspaceId, requirementId, docType, useAI, sessionId } = JSON.parse(body);
 
           if (!workspaceId || !requirementId || !docType) {
             json(res, { error: 'missing required fields' }, 400);
@@ -156,19 +157,48 @@ export function createTemplateRoutes(registry, llm) {
           }
 
           let content;
-          if (useAI && llm) {
+          if (useAI) {
+            // AI 生成需要 sessionId 来获取父 Agent
+            if (!sessionId) {
+              json(res, { error: 'AI 生成需要 sessionId - 请在 DSH 会话中调用此功能' }, 400);
+              return;
+            }
+
+            const parentAgent = agents?.get(sessionId);
+            if (!parentAgent) {
+              json(res, { error: '会话不存在或已结束，请在活跃的 DSH 会话中调用此功能' }, 400);
+              return;
+            }
+
             try {
-              addLog('info', `🤖 AI 生成 ${docType} 模板...`);
-              const docTypeName = docType === 'requirement' ? '需求文档' : docType === 'design' ? '技术方案' : 'CR记录';
-              const templatePrompt = getPrompt(config, 'template')
-                .replace(/\{docTypeName\}/g, docTypeName)
-                .replace(/\{requirementId\}/g, requirementId)
-                .replace(/\{path\}/g, found.path);
+              log.template.info(`AI 生成 ${docType} 模板...`);
               
-              content = await callLLM(llm, templatePrompt, config);
-              addLog('success', `✅ AI 生成 ${docType} 模板完成`);
+              const docTypeName = docType === 'requirement' ? '需求文档' : docType === 'design' ? '技术方案' : 'CR记录';
+              
+              // 使用模板变量
+              const variables = {
+                docTypeName,
+                requirementId,
+                path: found.path,
+              };
+              
+              // 使用 TaskExecutor 执行
+              const result = await executeTask(ctx, llm, config, {
+                promptKey: 'template',
+                variables,
+                parentAgent,
+                cwd: workspace.path,
+                description: `生成${docTypeName}模板`,
+              });
+
+              if (result.isError) {
+                throw new Error(result.diagnostic || 'AI 生成失败');
+              }
+
+              content = result.output;
+              log.template.info(`AI 生成 ${docType} 模板完成`);
             } catch (err) {
-              addLog('warning', `⚠️ AI 生成失败，降级为静态模板: ${err.message}`);
+              log.template.warn(`AI 生成失败，降级为静态模板: ${err.message}`);
               content = TEMPLATES[docType];
             }
           } else {
@@ -179,7 +209,7 @@ export function createTemplateRoutes(registry, llm) {
           const filePath = join(found.path, fileName);
 
           await writeFile(filePath, content, 'utf8');
-          addLog('success', `📋 生成${docType}文档模板: ${fileName}`);
+          log.template.info(`生成${docType}文档模板: ${fileName}`);
 
           json(res, {
             success: true,
@@ -188,7 +218,7 @@ export function createTemplateRoutes(registry, llm) {
             content
           });
         } catch (e) {
-          addLog('error', `❌ 生成模板失败: ${e.message}`);
+          log.template.error(`生成模板失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }

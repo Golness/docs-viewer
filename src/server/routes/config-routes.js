@@ -3,9 +3,9 @@
  */
 
 import { loadConfig, saveConfig, autoDefaultConfig } from '../config.js';
-import { PROMPT_REGISTRY, getPrompt } from '../prompts.js';
+import { PROMPT_REGISTRY, getPrompt, getAllPromptMetas, getPromptMeta, validatePromptTemplate } from '../prompts.js';
 import { json, readBody } from '../utils.js';
-import { addLog } from '../logger.js';
+import { log } from '../logger.js';
 
 export function createConfigRoutes(registry, llm) {
   return [
@@ -26,7 +26,7 @@ export function createConfigRoutes(registry, llm) {
             });
             res.end(JSON.stringify(config));
           } catch (e) {
-            addLog('error', `❌ GET /config 失败: ${e.message}`);
+            log.config.error(`GET /config 失败: ${e.message}`);
             json(res, { error: e.message }, 500);
           }
           return;
@@ -53,10 +53,10 @@ export function createConfigRoutes(registry, llm) {
             };
 
             await saveConfig(merged);
-            addLog('success', `✅ 配置已更新`);
+            log.config.info('配置已更新');
             json(res, merged);
           } catch (e) {
-            addLog('error', `❌ POST /config 失败: ${e.message}`);
+            log.config.error(`POST /config 失败: ${e.message}`);
             json(res, { error: e.message }, 500);
           }
           return;
@@ -96,7 +96,7 @@ export function createConfigRoutes(registry, llm) {
               models = modelList.map(m => m.id || m.name || m);
             }
           } catch (e) {
-            addLog('warning', `⚠️ 获取模型列表失败: ${e.message}`);
+            log.config.warn(`获取模型列表失败: ${e.message}`);
           }
 
           json(res, {
@@ -105,7 +105,7 @@ export function createConfigRoutes(registry, llm) {
             models: models
           });
         } catch (e) {
-          addLog('error', `❌ 获取 LLM 配置失败: ${e.message}`);
+          log.config.error(`获取 LLM 配置失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
@@ -147,7 +147,7 @@ export function createConfigRoutes(registry, llm) {
             hasCustomPrompt: !!(ai.prompts?.analyze && ai.prompts.analyze.trim()),
           });
         } catch (e) {
-          addLog('error', `❌ GET /ai-config 失败: ${e.message}`);
+          log.config.error(`GET /ai-config 失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
@@ -173,6 +173,9 @@ export function createConfigRoutes(registry, llm) {
               label: meta.label,
               description: meta.description,
               category: meta.category || 'default',
+              variables: meta.variables || [],
+              outputFormat: meta.outputFormat || 'text',
+              requirements: meta.requirements || [],
               default: meta.default,
               current: getPrompt(config, key),
               isCustom: !!(config.ai?.prompts?.[key] && config.ai.prompts[key].trim())
@@ -181,10 +184,76 @@ export function createConfigRoutes(registry, llm) {
           
           json(res, result);
         } catch (e) {
-          addLog('error', `❌ 获取 Prompt 注册表失败: ${e.message}`);
+          log.config.error(`获取 Prompt 注册表失败: ${e.message}`);
           json(res, { error: e.message }, 500);
         }
       }
-    }
+    },
+
+    // POST /prompt-validate - 验证自定义 prompt 模板
+    {
+      kind: 'exact',
+      path: '/req-hub/prompt-validate',
+      async handler(req, res) {
+        if (req.method !== 'POST') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const { promptKey, template } = JSON.parse(body);
+            
+            if (!promptKey || !template) {
+              json(res, { error: '缺少 promptKey 或 template' }, 400);
+              return;
+            }
+            
+            const result = validatePromptTemplate(promptKey, template);
+            json(res, result);
+          } catch (e) {
+            log.config.error(`验证 prompt 失败: ${e.message}`);
+            json(res, { error: e.message }, 500);
+          }
+        });
+      }
+    },
+
+    // GET /prompt-meta/:key - 获取单个 prompt 的元信息
+    {
+      kind: 'exact',
+      path: '/req-hub/prompt-meta',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        const promptKey = url.searchParams.get('key');
+
+        if (!promptKey) {
+          json(res, { error: '缺少 key 参数' }, 400);
+          return;
+        }
+
+        try {
+          const meta = getPromptMeta(promptKey);
+          if (!meta) {
+            json(res, { error: `未找到 promptKey: ${promptKey}` }, 404);
+            return;
+          }
+          json(res, meta);
+        } catch (e) {
+          log.config.error(`获取 prompt 元信息失败: ${e.message}`);
+          json(res, { error: e.message }, 500);
+        }
+      }
+    },
   ];
 }
+

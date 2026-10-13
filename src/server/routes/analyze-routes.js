@@ -1,22 +1,23 @@
 /**
  * AI 分析相关路由
+ * 所有 LLM 调用统一委托给 DSH Subagent
  */
 
 import { resolve, join } from 'node:path';
 import { readFile, stat } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { buildTree, findRequirementPath } from '../tree.js';
-import { callLLM, parseAIResponse } from '../ai-engine.js';
-import { validateMeta } from '../meta.js';
-import { readRequirementDocs, writeMetaJson } from '../doc-reader.js';
+import { readRequirementDocs } from '../doc-reader.js';
 import { rebuildIndex } from '../index-manager.js';
 import { json, readBody } from '../utils.js';
-import { addLog } from '../logger.js';
+import { log } from '../logger.js';
+import { getScopedSkills } from '../prompts.js';
+import { analyzeRequirement } from '../analyze-engine.js';
 
 // In-memory analysis task state
 let currentAnalysisTask = null;
 
-export function createAnalyzeRoutes(registry, llm) {
+export function createAnalyzeRoutes(registry, llm, sessions, agents, agentPresets, sessionQuery, ctx) {
   return [
     // GET /analyze-preview - 获取分析预览文件列表
     {
@@ -110,14 +111,22 @@ export function createAnalyzeRoutes(registry, llm) {
         const url = new URL(req.url, 'http://localhost');
         const workspaceId = url.searchParams.get('workspaceId');
         const requirementId = url.searchParams.get('requirementId');
+        const sessionId = url.searchParams.get('sessionId'); // 需要会话 ID 来获取父 Agent
 
         if (!workspaceId) {
           json(res, { error: 'missing workspaceId' }, 400);
           return;
         }
 
-        if (!llm) {
-          json(res, { error: 'LLM service not available' }, 503);
+        if (!sessionId) {
+          json(res, { error: 'missing sessionId - 分析功能需要在 DSH 会话中调用' }, 400);
+          return;
+        }
+
+        // 获取父 Agent
+        const parentAgent = agents?.get(sessionId);
+        if (!parentAgent) {
+          json(res, { error: '会话不存在或已结束，请在活跃的 DSH 会话中调用此功能' }, 400);
           return;
         }
 
@@ -149,6 +158,7 @@ export function createAnalyzeRoutes(registry, llm) {
           mode,
           requirementId,
           workspaceId,
+          sessionId,
           status: {},
           files: [],
           startTime,
@@ -190,6 +200,20 @@ export function createAnalyzeRoutes(registry, llm) {
             }
           }
 
+          // 获取 scoped skills
+          let scopedSkills = undefined;
+          try {
+            if (agents && agentPresets && sessionQuery) {
+              const scoped = await getScopedSkills(sessionId, sessionQuery, agents, agentPresets);
+              if (scoped) {
+                scopedSkills = scoped.skills;
+                log.analysis.debug(`使用 scoped skills`, { sessionId, hasScoped: true });
+              }
+            }
+          } catch (e) {
+            log.analysis.warn(`获取 scoped skills 失败: ${e.message}`);
+          }
+
           if (requirementId) {
             // Single requirement mode
             for (const dev of tree.developers) {
@@ -203,11 +227,11 @@ export function createAnalyzeRoutes(registry, llm) {
                   try { sendEvent({ type: 'start', id: reqId, developer: dev.name, path: req.path }); } catch { break; }
 
                   try {
-                    addLog('info', `📄 分析: ${dev.name}/${req.id}`);
+                    log.analysis.info(`分析: ${dev.name}/${req.id}`);
 
                     const docsContent = await readRequirementDocs(join(docsRoot, req.path));
                     if (!docsContent) {
-                      addLog('warning', `⚠️ 跳过: ${req.id} (无支持的文档文件)`);
+                      log.analysis.warn(`跳过: ${req.id} (无支持的文档文件)`);
                       failed++;
                       currentAnalysisTask.status[reqId] = { status: 'failed', error: '无支持的文档文件' };
                       try { sendEvent({ type: 'failed', id: reqId, error: '无支持的文档文件' }); } catch { break; }
@@ -216,24 +240,32 @@ export function createAnalyzeRoutes(registry, llm) {
 
                     try { sendEvent({ type: 'analyzing', id: reqId }); } catch { break; }
 
-                    const prompt = `需求目录名: ${req.id}\n\n以下是需求文档内容:\n\n${docsContent}`;
-                    const rawResponse = await callLLM(llm, prompt, config);
-                    let meta = parseAIResponse(rawResponse);
-                    meta = validateMeta(meta);
+                    const reqPath = join(docsRoot, req.path);
+                    const result = await analyzeRequirement({
+                      ctx,
+                      llm,
+                      config,
+                      parentAgent,
+                      reqPath,
+                      requirementId: req.id,
+                      cwd: workspace.path,
+                      scopedSkills,
+                    });
 
-                    const metaPath = join(docsRoot, req.path, '.meta.json');
-                    await writeMetaJson(metaPath, meta);
-
-                    success++;
-                    const elapsed = ((Date.now() - reqStartTime) / 1000).toFixed(1);
-                    currentAnalysisTask.status[reqId] = { status: 'completed', elapsed };
-                    try { sendEvent({ type: 'completed', id: reqId, elapsed }); } catch { break; }
-                    addLog('success', `✅ 分析完成: ${req.id} (${elapsed}s)`);
+                    if (result.success) {
+                      success++;
+                      currentAnalysisTask.status[reqId] = { status: 'completed', elapsed: result.elapsed };
+                      try { sendEvent({ type: 'completed', id: reqId, elapsed: result.elapsed }); } catch { break; }
+                    } else {
+                      failed++;
+                      currentAnalysisTask.status[reqId] = { status: 'failed', error: result.error };
+                      try { sendEvent({ type: 'failed', id: reqId, error: result.error }); } catch { break; }
+                    }
                   } catch (e) {
                     failed++;
                     currentAnalysisTask.status[reqId] = { status: 'failed', error: e.message };
                     try { sendEvent({ type: 'failed', id: reqId, error: e.message }); } catch { break; }
-                    addLog('error', `❌ 分析失败: ${req.id} - ${e.message}`);
+                    log.analysis.error(`分析失败: ${req.id} - ${e.message}`);
                   }
                 }
               }
@@ -243,7 +275,7 @@ export function createAnalyzeRoutes(registry, llm) {
             for (const dev of tree.developers) {
               for (const req of dev.requirements) {
                 if (currentAnalysisTask.cancelled) {
-                  addLog('warning', '⚠️ 分析已取消');
+                  log.analysis.warn('分析已取消');
                   break;
                 }
 
@@ -255,37 +287,36 @@ export function createAnalyzeRoutes(registry, llm) {
                 try { sendEvent({ type: 'start', id: reqId, developer: dev.name, path: req.path }); } catch { break; }
 
                 try {
-                  addLog('info', `📄 分析: ${dev.name}/${req.id}`);
-
-                  const docsContent = await readRequirementDocs(join(docsRoot, req.path));
-                  if (!docsContent) {
-                    addLog('warning', `⚠️ 跳过: ${req.id} (无支持的文档文件)`);
-                    failed++;
-                    currentAnalysisTask.status[reqId] = { status: 'failed', error: '无支持的文档文件' };
-                    try { sendEvent({ type: 'failed', id: reqId, error: '无支持的文档文件' }); } catch { break; }
-                    continue;
-                  }
+                  log.analysis.info(`分析: ${dev.name}/${req.id}`);
 
                   try { sendEvent({ type: 'analyzing', id: reqId }); } catch { break; }
 
-                  const prompt = `需求目录名: ${req.id}\n\n以下是需求文档内容:\n\n${docsContent}`;
-                  const rawResponse = await callLLM(llm, prompt, config);
-                  let meta = parseAIResponse(rawResponse);
-                  meta = validateMeta(meta);
+                  const reqPath = join(docsRoot, req.path);
+                  const result = await analyzeRequirement({
+                    ctx,
+                    llm,
+                    config,
+                    parentAgent,
+                    reqPath,
+                    requirementId: req.id,
+                    cwd: workspace.path,
+                    scopedSkills,
+                  });
 
-                  const metaPath = join(docsRoot, req.path, '.meta.json');
-                  await writeMetaJson(metaPath, meta);
-
-                  success++;
-                  const elapsed = ((Date.now() - reqStartTime) / 1000).toFixed(1);
-                  currentAnalysisTask.status[reqId] = { status: 'completed', elapsed };
-                  try { sendEvent({ type: 'completed', id: reqId, elapsed }); } catch { break; }
-                  addLog('success', `✅ 分析完成: ${req.id} (${elapsed}s)`);
+                  if (result.success) {
+                    success++;
+                    currentAnalysisTask.status[reqId] = { status: 'completed', elapsed: result.elapsed };
+                    try { sendEvent({ type: 'completed', id: reqId, elapsed: result.elapsed }); } catch { break; }
+                  } else {
+                    failed++;
+                    currentAnalysisTask.status[reqId] = { status: 'failed', error: result.error };
+                    try { sendEvent({ type: 'failed', id: reqId, error: result.error }); } catch { break; }
+                  }
                 } catch (e) {
                   failed++;
                   currentAnalysisTask.status[reqId] = { status: 'failed', error: e.message };
                   try { sendEvent({ type: 'failed', id: reqId, error: e.message }); } catch { break; }
-                  addLog('error', `❌ 分析失败: ${req.id} - ${e.message}`);
+                  log.analysis.error(`分析失败: ${req.id} - ${e.message}`);
                 }
               }
               if (currentAnalysisTask.cancelled) break;
@@ -367,7 +398,7 @@ export function createAnalyzeRoutes(registry, llm) {
         currentAnalysisTask.cancelled = true;
         currentAnalysisTask.completed = true;
         
-        addLog('warning', '⚠️ 用户取消了分析任务');
+        log.analysis.warn('用户取消了分析任务');
         json(res, { success: true, message: '分析任务已取消' });
       }
     },

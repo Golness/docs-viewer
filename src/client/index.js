@@ -712,6 +712,169 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dv-loading' }, h('div', { className: 'dv-spinner' }), 'Loading\u2026');
     }
 
+    // ─── SkillPreview (Markdown + Mermaid) ───────────────
+    function SkillPreview({ skillName, workspaceId, onBack }) {
+      const [text, setText] = useState('');
+      const [description, setDescription] = useState('');
+      const [error, setError] = useState(null);
+      const [rendered, setRendered] = useState('');
+      const markdownRef = useRef(null);
+      const mermaidInitRef = useRef(false);
+      const mermaidRenderIdRef = useRef(0);
+
+      const { loaded: markedLoaded } = useScript(
+        'https://cdn.jsdelivr.net/npm/marked/marked.min.js', MARKED_SCRIPT_ID, 'marked',
+      );
+      const { loaded: mermaidLoaded } = useScript(
+        'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js', MERMAID_SCRIPT_ID, 'mermaid',
+      );
+      const { loaded: hljsLoaded } = useScript(
+        'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js', HIGHLIGHT_SCRIPT_ID, 'hljs',
+      );
+
+      useEffect(() => {
+        if (!document.getElementById('req-hub-hljs-css')) {
+          const link = document.createElement('link');
+          link.id = 'req-hub-hljs-css';
+          link.rel = 'stylesheet';
+          link.href = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css';
+          document.head.appendChild(link);
+        }
+      }, []);
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            // 获取 sessionId
+            let sessionId = '';
+            try {
+              const ctx = window.__DSH_CTX__;
+              if (ctx) {
+                const uiWorkspace = ctx.get?.('uiWorkspace');
+                if (uiWorkspace?.selection && typeof uiWorkspace.selection.getSnapshot === 'function') {
+                  const selection = uiWorkspace.selection.getSnapshot();
+                  if (selection?.sessionId) {
+                    sessionId = selection.sessionId;
+                  }
+                }
+              }
+            } catch (e) {
+              // 忽略错误
+            }
+            
+            const url = sessionId
+              ? `${ROUTE}/skill-content?name=${encodeURIComponent(skillName)}&workspaceId=${encodeURIComponent(workspaceId || '')}&sessionId=${encodeURIComponent(sessionId)}`
+              : `${ROUTE}/skill-content?name=${encodeURIComponent(skillName)}&workspaceId=${encodeURIComponent(workspaceId || '')}`;
+            
+            const res = await fetch(url);
+            const data = await res.json();
+            if (cancelled) return;
+            if (!res.ok) setError(data.error || 'load failed');
+            else {
+              setText(data.content || '');
+              setDescription(data.description || '');
+            }
+          } catch (e) {
+            if (!cancelled) setError(String(e));
+          }
+        })();
+        return () => { cancelled = true; };
+      }, [skillName, workspaceId]);
+
+      useEffect(() => {
+        if (mermaidLoaded && window.mermaid && !mermaidInitRef.current) {
+          mermaidInitRef.current = true;
+          window.mermaid.initialize({ startOnLoad: false, theme: getMermaidTheme(), securityLevel: 'strict' });
+        }
+      }, [mermaidLoaded]);
+
+      useEffect(() => {
+        if (!mermaidInitRef.current || !window.mermaid || !rendered) return;
+        const observer = new MutationObserver(() => {
+          const newTheme = getMermaidTheme();
+          window.mermaid.initialize({ startOnLoad: false, theme: newTheme, securityLevel: 'strict' });
+          if (markdownRef.current) {
+            markdownRef.current.querySelectorAll('.mermaid-diagram').forEach(div => {
+              const code = div.getAttribute('data-mermaid-code');
+              if (code) {
+                const id = `mermaid-rerender-${Date.now()}-${Math.random()}`;
+                window.mermaid.render(id, code).then(({ svg }) => { div.innerHTML = svg; }).catch(() => {});
+              }
+            });
+          }
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+        return () => observer.disconnect();
+      }, [rendered]);
+
+      useEffect(() => {
+        if (!text) { setRendered(''); return; }
+        if (markedLoaded && window.marked) {
+          setRendered(sanitizeHtml(window.marked.parse(text)));
+        }
+      }, [text, markedLoaded]);
+
+      useLayoutEffect(() => {
+        if (!mermaidInitRef.current || !rendered || !markdownRef.current) return;
+        const mermaidBlocks = markdownRef.current.querySelectorAll('code.language-mermaid');
+        if (mermaidBlocks.length === 0) return;
+        mermaidRenderIdRef.current++;
+        const prefix = `mermaid-skill-${mermaidRenderIdRef.current}`;
+        mermaidBlocks.forEach(async (block, index) => {
+          const pre = block.parentElement;
+          const code = block.textContent;
+          const id = `${prefix}-${index}`;
+          try {
+            const { svg } = await window.mermaid.render(id, code);
+            const div = document.createElement('div');
+            div.className = 'mermaid-diagram';
+            div.setAttribute('data-mermaid-code', code);
+            div.innerHTML = svg;
+            pre.replaceWith(div);
+          } catch (e) { /* keep original */ }
+        });
+      }, [rendered]);
+
+      useLayoutEffect(() => {
+        if (!hljsLoaded || !window.hljs || !rendered || !markdownRef.current) return;
+        const codeBlocks = markdownRef.current.querySelectorAll('pre code:not(.language-mermaid)');
+        if (codeBlocks.length === 0) return;
+        codeBlocks.forEach(block => {
+          window.hljs.highlightElement(block);
+        });
+      }, [rendered, hljsLoaded]);
+
+      return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--dsw-alias-bg-base)' } },
+        // Header with back button
+        h('div', { style: { 
+          display: 'flex', alignItems: 'center', gap: 12, 
+          padding: '12px 16px', 
+          borderBottom: '1px solid var(--dsw-alias-border-l1)',
+          background: 'var(--dsw-alias-bg-layer-1)'
+        }},
+          h('button', {
+            className: 'dv-btn dv-btn-secondary',
+            onClick: onBack,
+            style: { fontSize: 12, padding: '4px 10px' }
+          }, '← 返回设置'),
+          h('div', { style: { flex: 1 } },
+            h('div', { style: { fontWeight: 600, fontSize: 14 } }, `🔗 ${skillName}`),
+            description && h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginTop: 2 } }, description)
+          )
+        ),
+        // Content
+        h('div', { className: 'dv-preview-body', style: { flex: 1, overflow: 'auto' } },
+          error ? h('span', { className: 'dv-error' }, 'Error: ', error)
+            : text 
+              ? (markedLoaded && rendered)
+                ? h('div', { ref: markdownRef, className: 'dv-markdown', dangerouslySetInnerHTML: { __html: rendered } })
+                : h(Spinner)
+              : h(Spinner)
+        )
+      );
+    }
+
     // ─── FilePreview (Markdown + Mermaid + breadcrumb) ───────────────
     // Covers: 2.4, 2.5, 2.12, 2.13
     function FilePreview({ workspaceId, relPath, name, requirement, onBack }) {
@@ -1135,11 +1298,32 @@ window.__ModuleLoader__.load({
         try {
           let data;
           if (searchMode === 'ai') {
+            // 获取当前会话 ID（AI 搜索需要在 DSH 会话中调用）
+            let currentSessionId = '';
+            try {
+              const ctx = window.__DSH_CTX__;
+              if (ctx) {
+                const uiWorkspace = ctx.get?.('uiWorkspace');
+                if (uiWorkspace?.selection && typeof uiWorkspace.selection.getSnapshot === 'function') {
+                  const selection = uiWorkspace.selection.getSnapshot();
+                  if (selection?.sessionId) {
+                    currentSessionId = selection.sessionId;
+                  }
+                }
+              }
+            } catch (e) {
+              // 忽略错误
+            }
+
+            if (!currentSessionId) {
+              throw new Error('AI 搜索需要在活跃的 DSH 会话中调用');
+            }
+
             // AI search mode with SSE streaming
             const response = await fetch(`${ROUTE}/ai-search`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ workspaceId, query, type: searchType }),
+              body: JSON.stringify({ workspaceId, query, type: searchType, sessionId: currentSessionId }),
             });
 
             // Check if response is not OK (e.g., 503 for LLM not available)
@@ -1294,9 +1478,32 @@ window.__ModuleLoader__.load({
         setAnalysisStatus(initialStatus);
 
         // Start streaming analysis
+        // 获取当前会话 ID（分析功能需要在 DSH 会话中调用）
+        let currentSessionId = '';
+        try {
+          const ctx = window.__DSH_CTX__;
+          if (ctx) {
+            const uiWorkspace = ctx.get?.('uiWorkspace');
+            if (uiWorkspace?.selection && typeof uiWorkspace.selection.getSnapshot === 'function') {
+              const selection = uiWorkspace.selection.getSnapshot();
+              if (selection?.sessionId) {
+                currentSessionId = selection.sessionId;
+              }
+            }
+          }
+        } catch (e) {
+          // 忽略错误
+        }
+        
+        if (!currentSessionId) {
+          setError('分析功能需要在活跃的 DSH 会话中调用');
+          setAnalyzing(false);
+          return;
+        }
+
         const streamUrl = mode === 'single' && selectedReq
-          ? `${ROUTE}/analyze-stream?workspaceId=${encodeURIComponent(workspaceId)}&requirementId=${encodeURIComponent(selectedReq.id)}`
-          : `${ROUTE}/analyze-stream?workspaceId=${encodeURIComponent(workspaceId)}`;
+          ? `${ROUTE}/analyze-stream?workspaceId=${encodeURIComponent(workspaceId)}&requirementId=${encodeURIComponent(selectedReq.id)}&sessionId=${encodeURIComponent(currentSessionId)}`
+          : `${ROUTE}/analyze-stream?workspaceId=${encodeURIComponent(workspaceId)}&sessionId=${encodeURIComponent(currentSessionId)}`;
 
         try {
           const eventSource = new EventSource(streamUrl);
@@ -1709,7 +1916,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dv-op-info', style: { marginBottom: 16 } },
           h('div', null, '需求目录：', h('code', null, `${selectedReq.developer}/${selectedReq.id}`)),
           h('div', { style: { marginTop: 4, fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
-            '分阶段同步：代码分析 → 对话分析 → 增量合并')
+            '分阶段同步：代码差异分析 → 讨论差异分析 → 增量合并')
         ),
 
         // History button at top
@@ -1872,7 +2079,7 @@ window.__ModuleLoader__.load({
         );
       }
 
-      if (!turnsData || turnsData.turnCount === 0) {
+      if (!turnsData || !turnsData.turns || turnsData.turns.length === 0) {
         return h('div', { style: { padding: 20 } },
           h('button', { className: 'dv-btn', onClick: onBack, style: { marginBottom: 12 } }, '← 返回'),
           h('div', { style: { fontSize: 13, color: 'var(--dsw-alias-label-secondary)', fontStyle: 'italic' } },
@@ -1893,9 +2100,9 @@ window.__ModuleLoader__.load({
             h('span', { style: { fontSize: 14, fontWeight: 600, flex: 1 } }, sessionTitle || '会话内容')
           ),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--dsw-alias-label-secondary)' }},
-            h('span', null, `共 ${turnsData.turnCount} 个轮次`),
+            h('span', null, `共 ${turnsData.turnCount || turnsData.turns?.length || 0} 个轮次`),
             h('span', null, `•`),
-            h('span', null, `${turnsData.totalLength.toLocaleString()} 字符`),
+            h('span', null, `约 ${((turnsData.totalTokens || 0) / 1000).toFixed(1)}k tokens`),
             h('span', { style: { marginLeft: 'auto' }},
               expandedTurns.size === turnsData.turnCount
                 ? h('button', { className: 'dv-btn', onClick: collapseAll, style: { fontSize: 10, padding: '2px 8px' }}, '全部收起')
@@ -1910,6 +2117,9 @@ window.__ModuleLoader__.load({
             const isExpanded = expandedTurns.has(turn.turnNumber);
             const time = turn.time ? new Date(turn.time).toLocaleString() : '';
             const endTime = turn.endTime ? new Date(turn.endTime).toLocaleString() : '';
+            // 兼容两种数据格式：sessionQuery 返回 content，sessions 服务返回 userInput
+            const userInput = turn.userInput || turn.content || '';
+            const summary = turn.summary || '';
             
             return h('div', {
               key: idx,
@@ -1945,7 +2155,7 @@ window.__ModuleLoader__.load({
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   color: 'var(--dsw-alias-label-primary)',
-                }}, turn.userInput.substring(0, 100)),
+                }}, (turn.userInput || turn.content || '').substring(0, 100)),
                 h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', flexShrink: 0 }}, time),
                 h('span', { style: { 
                   fontSize: 10, 
@@ -1982,7 +2192,7 @@ window.__ModuleLoader__.load({
                       borderRadius: 6,
                       borderLeft: '3px solid var(--dsw-alias-brand-primary)',
                     }
-                  }, turn.userInput)
+                  }, turn.userInput || turn.content || '(无内容)')
                 ),
                 
                 // Summary
@@ -2010,7 +2220,7 @@ window.__ModuleLoader__.load({
                       borderRadius: 6,
                       borderLeft: '3px solid var(--dsw-alias-state-success-primary)',
                     }
-                  }, turn.summary),
+                  }, turn.summary || '(无总结)'),
                   endTime && h('div', { 
                     style: { 
                       fontSize: 10, 
@@ -2030,6 +2240,15 @@ window.__ModuleLoader__.load({
     // ─── SyncStepList - Reusable step progress display ──────────────
     // Used by both active sync view and history detail view
     function SyncStepList({ steps, generatedFiles, workspaceId, requirementId, onViewFile }) {
+      const [expandedChunks, setExpandedChunks] = useState({});
+      
+      const toggleChunks = (phase) => {
+        setExpandedChunks(prev => ({
+          ...prev,
+          [phase]: !prev[phase]
+        }));
+      };
+      
       const getStepIcon = (status) => {
         switch (status) {
           case 'completed': return h('span', { style: { color: 'var(--dsw-alias-state-success-primary)', fontSize: 16 } }, '✅');
@@ -2048,6 +2267,13 @@ window.__ModuleLoader__.load({
           case 'skipped': return 'var(--dsw-alias-label-secondary)';
           default: return 'var(--dsw-alias-label-secondary)';
         }
+      };
+      
+      // 格式化 token 数
+      const formatTokens = (tokens) => {
+        if (!tokens) return '0';
+        if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k`;
+        return tokens.toString();
       };
 
       // Group files by phase
@@ -2075,6 +2301,9 @@ window.__ModuleLoader__.load({
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 }},
         (steps || []).map((step, idx) => {
           const phaseFiles = filesByPhase[step.phase] || [];
+          const hasChunks = step.chunks && step.chunks.length > 0;
+          const isExpanded = expandedChunks[step.phase];
+          
           return h('div', {
             key: idx,
             style: {
@@ -2088,6 +2317,28 @@ window.__ModuleLoader__.load({
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 }},
               getStepIcon(step.status),
               h('span', { style: { fontSize: 13, fontWeight: 600, color: getStepColor(step.status), flex: 1 }}, step.label),
+              // 分块数量标签
+              hasChunks && h('span', { 
+                onClick: () => toggleChunks(step.phase),
+                style: { 
+                  fontSize: 10, 
+                  color: 'var(--dsw-alias-brand-primary)', 
+                  background: 'var(--dsw-alias-bg-layer-2)',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                }
+              }, `${step.chunks.length} 块 ▾`),
+              // Token 数标签
+              step.totalTokens && h('span', { 
+                style: { 
+                  fontSize: 10, 
+                  color: 'var(--dsw-alias-label-secondary)',
+                  background: 'var(--dsw-alias-bg-layer-2)',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                }
+              }, `${formatTokens(step.totalTokens)} tokens`),
             ),
             // Step text
             step.text && h('div', { 
@@ -2099,6 +2350,70 @@ window.__ModuleLoader__.load({
                 lineHeight: 1.5,
               }
             }, step.text),
+            
+            // Chunks 详情（可展开）
+            hasChunks && isExpanded && h('div', { 
+              style: { marginTop: 8, marginLeft: 26, display: 'flex', flexDirection: 'column', gap: 6 }
+            },
+              // 分块总览
+              h('div', { style: { 
+                fontSize: 10, 
+                color: 'var(--dsw-alias-label-secondary)',
+                borderBottom: '1px solid var(--dsw-alias-border-l1)',
+                paddingBottom: 4,
+                marginBottom: 4,
+              }}, `共 ${step.chunks.length} 块，约 ${formatTokens(step.totalTokens)} tokens`),
+              
+              // 每块详情
+              step.chunks.map((chunk, ci) => 
+                h('div', {
+                  key: ci,
+                  style: {
+                    background: 'var(--dsw-alias-bg-layer-2)',
+                    borderRadius: 4,
+                    padding: '6px 8px',
+                    fontSize: 10,
+                  }
+                },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }},
+                    h('span', { style: { fontWeight: 600 }}, `块 ${ci + 1}`),
+                    h('span', { style: { color: 'var(--dsw-alias-label-secondary)' }}, `${formatTokens(chunk.tokens)} tokens`),
+                  ),
+                  // 文件列表
+                  chunk.files && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 }},
+                    chunk.files.slice(0, 5).map((f, fi) => 
+                      h('span', { 
+                        key: fi, 
+                        style: { 
+                          color: 'var(--dsw-alias-brand-primary)',
+                          background: 'var(--dsw-alias-bg-layer-1)',
+                          padding: '1px 4px',
+                          borderRadius: 2,
+                        }
+                      }, f.file || f)
+                    ),
+                    chunk.files.length > 5 && h('span', { 
+                      style: { color: 'var(--dsw-alias-label-secondary)' }
+                    }, `+${chunk.files.length - 5} 个文件`)
+                  ),
+                  // 消息列表
+                  chunk.messages && h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }},
+                    chunk.messages.slice(0, 3).map((m, mi) => 
+                      h('div', { 
+                        key: mi, 
+                        style: { 
+                          color: m.role === 'user' ? 'var(--dsw-alias-state-info-primary)' : 'var(--dsw-alias-brand-primary)',
+                        }
+                      }, `${m.role === 'user' ? '👤' : '🤖'} ${m.preview?.substring(0, 30) || ''}...`)
+                    ),
+                    chunk.messages.length > 3 && h('span', { 
+                      style: { color: 'var(--dsw-alias-label-secondary)' }
+                    }, `+${chunk.messages.length - 3} 条消息`)
+                  )
+                )
+              )
+            ),
+            
             // Files
             phaseFiles.length > 0 && h('div', { 
               style: { marginTop: 6, marginLeft: 26, display: 'flex', flexDirection: 'column', gap: 3 }
@@ -2390,12 +2705,12 @@ window.__ModuleLoader__.load({
 
         // Initialize with pending steps (including optional ones)
         const steps = [
-          { phase: 'init', label: '🔧 初始化', status: 'running', text: '正在启动...', files: [] },
-          { phase: 'session_extract', label: '📖 会话提取', status: 'pending', text: '', files: [] },
-          { phase: 'code_analysis', label: '💻 代码分析', status: 'pending', text: '', files: [] },
-          { phase: 'discussion_analysis', label: '💬 对话分析', status: 'pending', text: '', files: [] },
-          { phase: 'merge', label: '🔀 增量合并', status: 'pending', text: '', files: [] },
-          { phase: 'save', label: '💾 保存文件', status: 'pending', text: '', files: [] },
+          { phase: 'init', label: '🔧 初始化', status: 'running', text: '正在启动...', files: [], chunks: null },
+          { phase: 'session_extract', label: '📖 会话提取', status: 'pending', text: '', files: [], chunks: null },
+          { phase: 'code_analysis', label: '💻 代码差异分析', status: 'pending', text: '', files: [], chunks: null },
+          { phase: 'discussion_analysis', label: '💬 讨论差异分析', status: 'pending', text: '', files: [], chunks: null },
+          { phase: 'merge', label: '🔀 增量合并', status: 'pending', text: '', files: [], chunks: null },
+          { phase: 'save', label: '💾 保存文件', status: 'pending', text: '', files: [], chunks: null },
         ];
         if (runAnalysis) steps.push({ phase: 'analysis', label: '🧠 构建分析', status: 'pending', text: '', files: [] });
         if (runIndex) steps.push({ phase: 'index', label: '📊 构建索引', status: 'pending', text: '', files: [] });
@@ -2417,9 +2732,29 @@ window.__ModuleLoader__.load({
         setCurrentSync(initialSync);
 
         try {
+          // 获取当前会话 ID
+          let currentSessionId = '';
+          try {
+            const ctx = window.__DSH_CTX__;
+            if (ctx) {
+              const uiWorkspace = ctx.get?.('uiWorkspace');
+              if (uiWorkspace?.selection && typeof uiWorkspace.selection.getSnapshot === 'function') {
+                const selection = uiWorkspace.selection.getSnapshot();
+                if (selection?.sessionId) {
+                  currentSessionId = selection.sessionId;
+                }
+              }
+            }
+          } catch (e) {
+            // 忽略错误
+          }
+          
           const response = await fetch(`${ROUTE}/phased-sync`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(currentSessionId ? { 'x-session-id': currentSessionId } : {}),
+            },
             body: JSON.stringify({
               workspaceId,
               requirementId: selectedReq.id,
@@ -2430,11 +2765,31 @@ window.__ModuleLoader__.load({
             }),
           });
 
+          // 检查响应类型
+          const contentType = response.headers.get('content-type');
+          
+          // 如果返回 JSON，说明有正在进行的任务
+          if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            if (data.active && data.sync) {
+              setCurrentSync(data.sync);
+              setView('progress');
+              if (setSyncing) setSyncing(true);
+              // 如果任务还在运行，开始轮询
+              if (data.sync.status === 'running') {
+                connectToSyncSSE(data.sync.id);
+              }
+            } else {
+              throw new Error(data.error || data.message || '同步请求失败');
+            }
+            return;
+          }
+          
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+            throw new Error(`HTTP ${response.status}`);
           }
 
+          // SSE 流处理
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
@@ -2607,7 +2962,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dv-op-info', style: { marginBottom: 12 } },
           h('div', null, '需求目录：', h('code', null, `${selectedReq.developer}/${selectedReq.id}`)),
           h('div', { style: { marginTop: 4, fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
-            `同步${docTypeName}：代码分析 → 对话分析 → 增量合并`)
+            `同步${docTypeName}：代码差异分析 → 讨论差异分析 → 增量合并`)
         ),
 
         // Branch info display
@@ -3487,16 +3842,27 @@ window.__ModuleLoader__.load({
     // ─── LogPanel (4.9, 4.26) ─────────────────────────────────────────
     function LogPanel({ onClose }) {
       const [logs, setLogs] = useState([]);
+      const [logMeta, setLogMeta] = useState({ levels: {}, tags: {} });
       const [autoRefresh, setAutoRefresh] = useState(true);
+      const [selectedLevels, setSelectedLevels] = useState(['info', 'warn', 'error']);
       const [selectedTags, setSelectedTags] = useState([]);
 
       useEffect(() => {
         const fetchLogs = async () => {
           try {
-            const res = await fetch(`${ROUTE}/logs`);
-            if (res.ok) {
-              const data = await res.json();
+            // 并行获取日志和元数据
+            const [logsRes, metaRes] = await Promise.all([
+              fetch(`${ROUTE}/logs`),
+              fetch(`${ROUTE}/logs/meta`)
+            ]);
+            
+            if (logsRes.ok) {
+              const data = await logsRes.json();
               setLogs(data.logs || []);
+            }
+            if (metaRes.ok) {
+              const meta = await metaRes.json();
+              setLogMeta({ levels: meta.levels || {}, tags: meta.tags || {} });
             }
           } catch (err) {
             console.error('Failed to fetch logs:', err);
@@ -3511,45 +3877,73 @@ window.__ModuleLoader__.load({
         }
       }, [autoRefresh]);
 
-      const getLogIcon = (type) => {
-        switch (type) {
-          case 'success': return '✅';
+      // 日志等级相关
+      const getLevelIcon = (level) => {
+        switch (level) {
+          case 'debug': return '🔍';
+          case 'info': return 'ℹ️';
+          case 'warn': return '⚠️';
           case 'error': return '❌';
-          case 'warning': return '⚠️';
           default: return 'ℹ️';
         }
       };
 
-      const getLogColor = (type) => {
-        switch (type) {
-          case 'success': return 'var(--dsw-alias-state-success-primary)';
+      const getLevelColor = (level) => {
+        switch (level) {
+          case 'debug': return 'var(--dsw-alias-label-secondary)';
+          case 'info': return 'var(--dsw-alias-state-info-primary)';
+          case 'warn': return 'var(--dsw-alias-state-warning-primary)';
           case 'error': return 'var(--dsw-alias-state-error-primary)';
-          case 'warning': return 'var(--dsw-alias-state-warning-primary)';
           default: return 'var(--dsw-alias-state-info-primary)';
         }
       };
 
-      const getTagLabel = (type) => {
-        switch (type) {
-          case 'success': return '成功';
-          case 'error': return '错误';
-          case 'warning': return '警告';
-          case 'info': return '信息';
-          default: return type;
+      const getLevelLabel = (level) => {
+        switch (level) {
+          case 'debug': return 'Debug';
+          case 'info': return 'Info';
+          case 'warn': return 'Warn';
+          case 'error': return 'Error';
+          default: return level;
         }
       };
 
-      // 统计各类型日志数量
-      const tagCounts = logs.reduce((acc, log) => {
-        const type = log.type || 'info';
-        acc[type] = (acc[type] || 0) + 1;
+      // 统计各等级日志数量
+      const levelCounts = logs.reduce((acc, log) => {
+        const level = log.level || 'info';
+        acc[level] = (acc[level] || 0) + 1;
         return acc;
       }, {});
 
-      // 根据选中的标签过滤日志
-      const filteredLogs = selectedTags.length === 0
-        ? logs
-        : logs.filter(log => selectedTags.includes(log.type || 'info'));
+      // 统计各标签日志数量
+      const tagCounts = logs.reduce((acc, log) => {
+        const tag = log.tag || 'startup';
+        acc[tag] = (acc[tag] || 0) + 1;
+        return acc;
+      }, {});
+
+      // 根据选中的等级和标签过滤日志
+      // 等级筛选：必须至少选择一个等级才显示
+      // 标签筛选：可选，不选则不参与过滤
+      const filteredLogs = selectedLevels.length === 0 
+        ? [] // 没有选择等级，不显示任何日志
+        : logs.filter(log => {
+            const level = log.level || 'info';
+            const tag = log.tag || 'startup';
+            
+            const levelMatch = selectedLevels.includes(level);
+            const tagMatch = selectedTags.length === 0 || selectedTags.includes(tag);
+            
+            return levelMatch && tagMatch;
+          });
+
+      const toggleLevel = (level) => {
+        setSelectedLevels(prev => 
+          prev.includes(level)
+            ? prev.filter(l => l !== level)
+            : [...prev, level]
+        );
+      };
 
       const toggleTag = (tag) => {
         setSelectedTags(prev => 
@@ -3559,9 +3953,34 @@ window.__ModuleLoader__.load({
         );
       };
 
+      const selectAllLevels = () => {
+        setSelectedLevels(['debug', 'info', 'warn', 'error']);
+      };
+
+      const clearAllLevels = () => {
+        setSelectedLevels([]);
+      };
+
+      const clearAllTags = () => {
+        setSelectedTags([]);
+      };
+
+      const resetFilters = () => {
+        setSelectedLevels(['info', 'warn', 'error']);
+        setSelectedTags([]);
+      };
+
+      // 判断是否有筛选条件变化
+      const hasFilterChanges = selectedLevels.length !== 3 || 
+        !selectedLevels.includes('info') || 
+        !selectedLevels.includes('warn') || 
+        !selectedLevels.includes('error') ||
+        selectedTags.length > 0;
+
       return h('div', { className: 'dv-op-panel' },
-        h('div', { className: 'dv-op-header' },
-          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+        // 顶部工具栏
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '8px 0', borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
             h('label', { style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 } },
               h('input', {
                 type: 'checkbox',
@@ -3576,67 +3995,166 @@ window.__ModuleLoader__.load({
                 try {
                   await fetch(`${ROUTE}/logs/clear`, { method: 'POST' });
                   setLogs([]);
-                  setSelectedTags([]);
                 } catch (err) {
                   console.error('Failed to clear logs:', err);
                 }
               }
             }, '清空')
           ),
-          // 标签筛选器
-          h('div', { style: { display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' } },
-            h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, '筛选：'),
-            Object.entries(tagCounts).map(([tag, count]) => {
+          hasFilterChanges && h('button', {
+            className: 'dv-btn dv-btn-secondary',
+            onClick: resetFilters
+          }, '重置筛选')
+        ),
+        
+        // 第一层：等级筛选器
+        h('div', { style: { marginBottom: 12 } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+            h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', fontWeight: 600 } }, 
+              '日志等级：',
+              selectedLevels.length > 0 ? `已选 ${selectedLevels.length}/${4}` : '请选择'
+            ),
+            h('div', { style: { display: 'flex', gap: 4 } },
+              selectedLevels.length < 4 && h('button', {
+                onClick: selectAllLevels,
+                style: {
+                  padding: '2px 6px',
+                  fontSize: 10,
+                  borderRadius: 4,
+                  border: 'none',
+                  background: 'var(--dsw-alias-bg-layer-2)',
+                  color: 'var(--dsw-alias-label-secondary)',
+                  cursor: 'pointer'
+                }
+              }, '全选'),
+              selectedLevels.length > 0 && h('button', {
+                onClick: clearAllLevels,
+                style: {
+                  padding: '2px 6px',
+                  fontSize: 10,
+                  borderRadius: 4,
+                  border: 'none',
+                  background: 'var(--dsw-alias-bg-layer-2)',
+                  color: 'var(--dsw-alias-label-secondary)',
+                  cursor: 'pointer'
+                }
+              }, '清除')
+            )
+          ),
+          h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+            ['debug', 'info', 'warn', 'error'].map(level => {
+              const isSelected = selectedLevels.includes(level);
+              const count = levelCounts[level] || 0;
+              return h('button', {
+                key: level,
+                onClick: () => toggleLevel(level),
+                style: {
+                  padding: '4px 12px',
+                  fontSize: 11,
+                  borderRadius: 12,
+                  border: 'none',
+                  background: isSelected ? 'var(--dsw-alias-bg-layer-2)' : 'transparent',
+                  color: isSelected ? getLevelColor(level) : 'var(--dsw-alias-label-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  fontWeight: isSelected ? 600 : 400
+                }
+              }, `${getLevelIcon(level)} ${getLevelLabel(level)} (${count})`);
+            })
+          )
+        ),
+        
+        // 第二层：标签筛选器
+        h('div', { style: { marginBottom: 12 } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+            h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', fontWeight: 600 } }, 
+              '功能模块：',
+              selectedTags.length > 0 ? `已选 ${selectedTags.length}/${Object.keys(tagCounts).length}` : '全部'
+            ),
+            selectedTags.length > 0 && h('button', {
+              onClick: clearAllTags,
+              style: {
+                padding: '2px 6px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'var(--dsw-alias-bg-layer-2)',
+                color: 'var(--dsw-alias-label-secondary)',
+                cursor: 'pointer'
+              }
+            }, '清除')
+          ),
+          h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+            Object.keys(tagCounts).sort().map(tag => {
               const isSelected = selectedTags.includes(tag);
+              const count = tagCounts[tag] || 0;
+              const tagLabel = logMeta.tags[tag] || tag;
               return h('button', {
                 key: tag,
                 onClick: () => toggleTag(tag),
                 style: {
-                  padding: '3px 10px',
+                  padding: '4px 12px',
                   fontSize: 11,
                   borderRadius: 12,
-                  border: `1px solid ${getLogColor(tag)}`,
-                  background: isSelected ? getLogColor(tag) : 'transparent',
-                  color: isSelected ? 'white' : getLogColor(tag),
+                  border: 'none',
+                  background: isSelected ? 'var(--dsw-alias-bg-layer-2)' : 'transparent',
+                  color: isSelected ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-label-secondary)',
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.15s',
                   fontWeight: isSelected ? 600 : 400
                 }
-              }, `${getLogIcon(tag)} ${getTagLabel(tag)} (${count})`);
+              }, `${tagLabel} (${count})`);
             }),
-            selectedTags.length > 0 && h('button', {
-              onClick: () => setSelectedTags([]),
-              style: {
-                padding: '3px 10px',
-                fontSize: 11,
-                borderRadius: 12,
-                border: '1px solid var(--dsw-alias-label-secondary)',
-                background: 'transparent',
-                color: 'var(--dsw-alias-label-secondary)',
-                cursor: 'pointer'
-              }
-            }, '清除筛选')
+            Object.keys(tagCounts).length === 0 && h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, '暂无标签')
           )
         ),
+        
+        // 日志列表
         h('div', { className: 'dv-log-list' },
           filteredLogs.length === 0
             ? h('div', { className: 'dv-empty' }, 
-                selectedTags.length > 0 ? '没有匹配的日志' : '暂无日志')
+                logs.length === 0 
+                  ? '暂无日志' 
+                  : selectedLevels.length === 0
+                    ? '请至少选择一个日志等级'
+                    : '没有匹配的日志，请调整筛选条件')
             : filteredLogs.map((log, idx) =>
                 h('div', { 
                   key: idx, 
                   className: 'dv-log-item',
-                  style: { borderLeft: `3px solid ${getLogColor(log.type)}` }
+                  style: { borderLeft: `3px solid ${getLevelColor(log.level)}` }
                 },
                   h('div', { className: 'dv-log-item-header' },
-                    h('span', { className: 'dv-log-icon' }, getLogIcon(log.type)),
+                    h('span', { className: 'dv-log-icon' }, getLevelIcon(log.level)),
                     h('span', { 
                       className: 'dv-log-time',
-                      style: { color: getLogColor(log.type) }
+                      style: { color: getLevelColor(log.level) }
                     }, new Date(log.timestamp).toLocaleTimeString()),
-                    h('span', { className: 'dv-log-type' }, getTagLabel(log.type))
+                    h('span', { 
+                      className: 'dv-log-type',
+                      style: { 
+                        background: 'var(--dsw-alias-bg-layer-3)',
+                        color: 'var(--dsw-alias-label-secondary)'
+                      }
+                    }, logMeta.tags[log.tag] || log.tag)
                   ),
-                  h('div', { className: 'dv-log-message' }, log.message)
+                  h('div', { className: 'dv-log-message' }, log.message),
+                  // 显示附加数据（debug 级别的详细信息）
+                  log.data && h('div', { 
+                    style: { 
+                      marginTop: 6,
+                      padding: '6px 8px',
+                      background: 'var(--dsw-alias-bg-layer-3)',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontFamily: 'ui-monospace, monospace',
+                      color: 'var(--dsw-alias-label-secondary)',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      maxHeight: 200,
+                      overflowY: 'auto'
+                    }
+                  }, typeof log.data === 'object' ? JSON.stringify(log.data, null, 2) : String(log.data))
                 )
               )
         )
@@ -3648,14 +4166,17 @@ window.__ModuleLoader__.load({
       const [settings, setSettings] = useState({
         ai: {
           selectedModel: '',
-          prompts: {}
+          prompts: {},
+          skillBindings: {}
         }
       });
       const [llmConfig, setLlmConfig] = useState(null);
       const [promptRegistry, setPromptRegistry] = useState(null);
+      const [availableSkills, setAvailableSkills] = useState([]);
       const [expandedPrompts, setExpandedPrompts] = useState({});
       const [saving, setSaving] = useState(false);
       const [message, setMessage] = useState(null);
+      const [previewingSkill, setPreviewingSkill] = useState(null); // 预览中的 skill 名称
 
       useEffect(() => {
         const fetchAll = async () => {
@@ -3667,7 +4188,8 @@ window.__ModuleLoader__.load({
               setSettings({
                 ai: {
                   selectedModel: data.ai?.selectedModel || '',
-                  prompts: data.ai?.prompts || {}
+                  prompts: data.ai?.prompts || {},
+                  skillBindings: data.ai?.skillBindings || {}
                 }
               });
             }
@@ -3689,9 +4211,52 @@ window.__ModuleLoader__.load({
               setPromptRegistry(data);
             }
           } catch (err) { console.error('Failed to fetch prompt registry:', err); }
+
+          // Fetch available skills
+          try {
+            // 尝试从 DSH 上下文获取当前会话 ID
+            let sessionId = null;
+            try {
+              const ctx = window.__DSH_CTX__;
+              if (ctx) {
+                const uiWorkspace = ctx.get?.('uiWorkspace');
+                if (uiWorkspace?.selection && typeof uiWorkspace.selection.getSnapshot === 'function') {
+                  const selection = uiWorkspace.selection.getSnapshot();
+                  if (selection?.sessionId) {
+                    sessionId = selection.sessionId;
+                  }
+                }
+              }
+            } catch (e) {
+              // 忽略错误
+            }
+            
+            // 构建 URL：优先使用 sessionId，如果没有则使用 workspaceId
+            let skillsUrl;
+            if (sessionId) {
+              skillsUrl = `${ROUTE}/skills?sessionId=${encodeURIComponent(sessionId)}`;
+              if (workspaceId) {
+                skillsUrl += `&workspaceId=${encodeURIComponent(workspaceId)}`;
+              }
+            } else if (workspaceId) {
+              skillsUrl = `${ROUTE}/skills?workspaceId=${encodeURIComponent(workspaceId)}`;
+            } else {
+              skillsUrl = `${ROUTE}/skills`;
+            }
+            
+            console.log('Fetching skills from:', skillsUrl);
+            const skillsRes = await fetch(skillsUrl);
+            if (skillsRes.ok) {
+              const data = await skillsRes.json();
+              console.log('Skills API response:', data);
+              setAvailableSkills(data.skills || []);
+            } else {
+              console.error('Skills API error:', skillsRes.status);
+            }
+          } catch (err) { console.error('Failed to fetch skills:', err); }
         };
         fetchAll();
-      }, []);
+      }, [workspaceId]);
 
       // Auto-select first model if none selected
       useEffect(() => {
@@ -3738,15 +4303,52 @@ window.__ModuleLoader__.load({
         }));
       };
 
-      const handleResetPrompt = (key) => {
+      const handleSkillBindingChange = (promptKey, skillName) => {
         setSettings(prev => ({
           ...prev,
           ai: {
             ...prev.ai,
-            prompts: { ...prev.ai.prompts, [key]: '' }
+            skillBindings: {
+              ...prev.ai.skillBindings,
+              [promptKey]: skillName || null
+            }
           }
         }));
       };
+
+      const handleResetPrompt = (key) => {
+        setSettings(prev => {
+          const newPrompts = { ...prev.ai.prompts };
+          delete newPrompts[key];
+          const newSkillBindings = { ...prev.ai.skillBindings };
+          delete newSkillBindings[key];
+          return {
+            ...prev,
+            ai: {
+              ...prev.ai,
+              prompts: newPrompts,
+              skillBindings: newSkillBindings
+            }
+          };
+        });
+      };
+
+      const handlePreviewSkill = (skillName) => {
+        setPreviewingSkill(skillName);
+      };
+
+      const handleBackFromPreview = () => {
+        setPreviewingSkill(null);
+      };
+
+      // 如果正在预览 skill，显示预览组件
+      if (previewingSkill) {
+        return h(SkillPreview, { 
+          skillName: previewingSkill, 
+          workspaceId, 
+          onBack: handleBackFromPreview 
+        });
+      }
 
       return h('div', { className: 'dv-op-panel', style: { overflowY: 'auto' } },
 
@@ -3828,6 +4430,7 @@ window.__ModuleLoader__.load({
                       const isExpanded = expandedPrompts[key];
                       const currentCustom = settings.ai.prompts[key] || '';
                       const isCustomized = currentCustom.trim().length > 0;
+                      const hasSkillBinding = !!settings.ai.skillBindings?.[key];
 
                       return h('div', {
                         key,
@@ -3851,6 +4454,13 @@ window.__ModuleLoader__.load({
                         },
                           h('span', { style: { fontSize: 10, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' } }, '▶'),
                           h('span', { style: { fontWeight: 600 } }, meta.label),
+                          hasSkillBinding && h('span', {
+                            style: {
+                              fontSize: 10, padding: '1px 6px', borderRadius: 8,
+                              background: 'var(--dsw-alias-brand-primary-bg)',
+                              color: 'var(--dsw-alias-brand-primary)'
+                            }
+                          }, `🔗 ${settings.ai.skillBindings[key]}`),
                           isCustomized && h('span', {
                             style: {
                               fontSize: 10, padding: '1px 6px', borderRadius: 8,
@@ -3858,7 +4468,7 @@ window.__ModuleLoader__.load({
                               color: 'var(--dsw-alias-state-success-primary)'
                             }
                           }, '已自定义'),
-                          !isCustomized && h('span', {
+                          !isCustomized && !hasSkillBinding && h('span', {
                             style: {
                               fontSize: 10, padding: '1px 6px', borderRadius: 8,
                               background: 'var(--dsw-alias-bg-layer-3)',
@@ -3869,16 +4479,89 @@ window.__ModuleLoader__.load({
 
                         // Expanded content
                         isExpanded && h('div', { style: { padding: '12px' } },
-                          h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8 } }, meta.description),
-                          h('textarea', {
-                            className: 'dv-form-textarea',
-                            rows: 10,
-                            value: currentCustom || meta.default,
-                            onChange: (e) => handlePromptChange(key, e.target.value),
-                            style: { fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5 },
-                            placeholder: '留空使用默认 Prompt'
-                          }),
-                          isCustomized && h('div', { style: { marginTop: 8, textAlign: 'right' } },
+                          // 说明卡片
+                          h('div', { style: { marginBottom: 12, padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-3)', borderRadius: 6, borderLeft: '3px solid var(--dsw-alias-color-brand)' } },
+                            h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 8, color: 'var(--dsw-alias-label-primary)' } },
+                              '📋 Prompt 结构说明'
+                            ),
+                            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', lineHeight: 1.6 } },
+                              h('div', { style: { marginBottom: 6 } },
+                                h('strong', null, 'Skill（指令层）'),
+                                '：来自 DSH skills 系统，定义"怎么做"，包含完整的执行流程和规则。'
+                              ),
+                              h('div', { style: { marginBottom: 6 } },
+                                h('strong', null, 'Prompt（数据层）'),
+                                '：本地定义的模板，包含业务数据变量（如 {currentDoc}、{codeDiff}），定义"处理什么数据"。'
+                              ),
+                              h('div', null,
+                                h('strong', null, '组合使用'),
+                                '：两者配合，Skill 作为 system prompt，Prompt 提供具体的业务数据模板。'
+                              )
+                            )
+                          ),
+                          
+                          // Skill 选择器
+                          h('div', { style: { marginBottom: 12, padding: '8px 10px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 6, border: hasSkillBinding ? '1px solid var(--dsw-alias-color-brand)' : '1px solid var(--dsw-alias-border-l2)' } },
+                            h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'var(--dsw-alias-label-primary)' } },
+                              '🔗 绑定 Skill 作为指令层'
+                            ),
+                            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8, lineHeight: 1.5 } },
+                              '选择一个 Skill 作为执行指令。Skill 定义完整的任务流程，下方的 Prompt 提供业务数据模板。'
+                            ),
+                            h('div', { style: { display: 'flex', gap: 8 } },
+                              h('select', {
+                                value: settings.ai.skillBindings?.[key] || '',
+                                onChange: (e) => handleSkillBindingChange(key, e.target.value),
+                                style: {
+                                  flex: 1,
+                                  padding: '6px 8px',
+                                  fontSize: 11,
+                                  borderRadius: 4,
+                                  border: '1px solid var(--dsw-alias-border-l2)',
+                                  background: 'var(--dsw-alias-bg-layer-1)',
+                                  color: 'var(--dsw-alias-label-primary)'
+                                }
+                              },
+                                h('option', { value: '' }, '不绑定 Skill（仅使用下方 Prompt）'),
+                                availableSkills.length === 0 && h('option', { value: '', disabled: true }, '加载中或无可用 Skill...'),
+                                availableSkills.map(skill => 
+                                  h('option', { key: skill.name, value: skill.name }, 
+                                    skill.name + (skill.description ? ` - ${skill.description.substring(0, 30)}...` : '')
+                                  )
+                                )
+                              ),
+                              // 预览按钮
+                              settings.ai.skillBindings?.[key] && h('button', {
+                                className: 'dv-btn dv-btn-secondary',
+                                onClick: (e) => { e.stopPropagation(); handlePreviewSkill(settings.ai.skillBindings[key]); },
+                                style: { fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }
+                              }, '👁 预览')
+                            )
+                          ),
+                          
+                          // Prompt 编辑区（数据模板）
+                          h('div', { style: { marginBottom: 8, padding: '6px 8px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 6 } },
+                            h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'var(--dsw-alias-label-primary)' } },
+                              '📝 Prompt 数据模板',
+                              hasSkillBinding && h('span', { style: { fontSize: 10, fontWeight: 400, marginLeft: 8, color: 'var(--dsw-alias-label-secondary)' } },
+                                '（配合 Skill 使用，提供业务数据）'
+                              )
+                            ),
+                            h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', marginBottom: 6, lineHeight: 1.4 } },
+                              '定义业务数据模板，使用 {变量名} 插入动态内容。如：{currentDoc}、{codeDiff}、{commitList}'
+                            ),
+                            h('textarea', {
+                              className: 'dv-form-textarea',
+                              rows: 10,
+                              value: currentCustom || meta.default,
+                              onChange: (e) => handlePromptChange(key, e.target.value),
+                              style: { fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5 },
+                              placeholder: '定义业务数据模板，留空使用默认'
+                            })
+                          ),
+                          
+                          // 操作按钮
+                          (isCustomized || hasSkillBinding) && h('div', { style: { marginTop: 8, textAlign: 'right' } },
                             h('button', {
                               className: 'dv-btn',
                               style: { fontSize: 11, padding: '4px 10px', color: 'var(--dsw-alias-state-warning-primary)' },
@@ -4354,6 +5037,26 @@ window.__ModuleLoader__.load({
         } catch { /* ignore */ }
       };
 
+      const handleOpenInExplorer = async () => {
+        if (!currentWorkspace || !currentReq) return;
+        try {
+          const res = await fetch(`${ROUTE}/open-in-explorer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              workspaceId: currentWorkspace.id, 
+              requirementId: currentReq.id 
+            }),
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            alert(data.error || '打开失败');
+          }
+        } catch (e) {
+          alert('打开失败: ' + e.message);
+        }
+      };
+
       return h('div', { className: 'dv-topbar' },
         h('div', { className: 'dv-topbar-left' },
           // 定位到当前会话需求目录按钮
@@ -4362,8 +5065,16 @@ window.__ModuleLoader__.load({
             onClick: onLocateSessionReq,
             title: '自动定位到当前 DSH 会话对应的需求文档目录',
             style: { marginRight: 12, padding: '4px 12px', fontSize: 12 }
-          }, '📍 定位会话需求'),
-          
+          }, '定位会话需求'),
+
+          // 工作区
+          h('span', { className: 'dv-topbar-label' }, '工作区:'),
+          h('span', {
+              className: `dv-topbar-value${currentWorkspace ? ' selected' : ' unselected'}`,
+              onClick: onChangeWorkspace,
+              title: '点击切换工作区',
+            }, currentWorkspace?.title || currentWorkspace?.id || '(未选择)'),
+
           // 项目路径
           h('span', { className: 'dv-topbar-label' }, '项目路径:'),
           h('span', {
@@ -4372,21 +5083,21 @@ window.__ModuleLoader__.load({
               title: '点击修改项目 docs 路径',
             }, docsDir),
           
-          // 工作区
-          h('span', { className: 'dv-topbar-label' }, '工作区:'),
-          h('span', {
-              className: `dv-topbar-value${currentWorkspace ? ' selected' : ' unselected'}`,
-              onClick: onChangeWorkspace,
-              title: '点击切换工作区',
-            }, currentWorkspace?.title || currentWorkspace?.id || '(未选择)'),
-          
           // 需求目录
           h('span', { className: 'dv-topbar-label' }, '需求目录:'),
           h('span', {
               className: `dv-topbar-value${currentReq ? ' selected' : ' unselected'}`,
               onClick: onChangeReq,
               title: '点击选择需求目录',
-            }, currentReq ? `${currentReq.date?.slice(5)} ${currentReq.title}` : '(未选择)')
+            }, currentReq ? `${currentReq.date?.slice(5)} ${currentReq.title}` : '(未选择)'),
+
+          // 在文件资源管理器中打开按钮
+          currentReq && h('button', {
+            className: 'dv-btn',
+            onClick: handleOpenInExplorer,
+            title: '在文件资源管理器中打开此需求目录',
+            style: { marginLeft: 8, padding: '2px 8px', fontSize: 11 }
+          }, '📂')
         ),
         
         // 项目路径输入弹框
@@ -5148,7 +5859,7 @@ window.__ModuleLoader__.load({
 
     // ─── Tab title ───────────────────────────────────────────────────
     function TabTitle() {
-      return h('span', null, '📄 Docs');
+      return h('span', null, '📋 Req Hub');
     }
 
     // ─── Trigger button ──────────────────────────────────────────────
@@ -5246,7 +5957,7 @@ window.__ModuleLoader__.load({
 
         disposers.push(ctx.sidebarRightTabs.register({
           id: TAB_ID, kind: TAB_KIND, multiple: false, priority: 'user',
-          title: () => 'Project Documentation',
+          title: () => 'Req Hub',
         }));
 
         disposers.push(ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
@@ -5259,7 +5970,7 @@ window.__ModuleLoader__.load({
 
         disposers.push(ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
           name: 'sidebar.footer.action', id: 'req-hub-trigger', order: 10,
-          label: 'Project Documentation',
+          label: 'Req Hub',
         }, ({ wide }) => {
           const handleClick = () => {
             ctx.layout.openRightbar(true, false);
@@ -5276,3 +5987,9 @@ window.__ModuleLoader__.load({
     };
   },
 });
+
+
+
+
+
+
