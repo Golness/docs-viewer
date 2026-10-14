@@ -1,0 +1,232 @@
+'use strict';
+
+const React = require('react');
+const h = React.createElement;
+const { useState } = React;
+const { ROUTE } = require('../constants.js');
+
+// ─── IndexPanel (4.5, 4.17-4.19) ────────────────────────────────
+function IndexPanel({ workspaceId, indexStatus, onRefresh, onClose }) {
+  const [rebuilding, setRebuilding] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [showIndexFile, setShowIndexFile] = useState(false);
+  const [indexContent, setIndexContent] = useState(null);
+  const [showStructuredIndex, setShowStructuredIndex] = useState(false);
+  const [indexData, setIndexData] = useState(null);
+
+  const handleRebuild = async () => {
+    setRebuilding(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`${ROUTE}/rebuild-index`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '重建失败');
+      } else {
+        setSuccess(`✅ 索引重建完成 (${data.elapsed}s)`);
+        if (onRefresh) onRefresh();
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRebuilding(false);
+    }
+  };
+
+  const handleViewIndex = async () => {
+    try {
+      const res = await fetch(`${ROUTE}/read?workspaceId=${encodeURIComponent(workspaceId)}&path=.index/search-index.json`);
+      if (res.ok) {
+        const data = await res.json();
+        setIndexContent(data.text);
+        setShowIndexFile(true);
+      } else {
+        setError('读取索引文件失败');
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleViewStructuredIndex = async () => {
+    setShowStructuredIndex(true);
+    setIndexData(null);
+    try {
+      const res = await fetch(`${ROUTE}/index-data?workspaceId=${encodeURIComponent(workspaceId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setIndexData(data);
+      } else {
+        setIndexData({ error: '加载失败' });
+      }
+    } catch (e) {
+      setIndexData({ error: e.message });
+    }
+  };
+
+  // Structured index viewer
+  const IndexViewer = () => {
+    if (!showStructuredIndex) return null;
+
+    if (!indexData) {
+      return h('div', { className: 'dv-op-panel' },
+        h('div', { style: { textAlign: 'center', padding: 20 } }, '加载中...'),
+        h('div', { className: 'dv-btn-stack' },
+          h('button', { className: 'dv-btn', onClick: () => setShowStructuredIndex(false) }, '← 返回')
+        )
+      );
+    }
+
+    if (indexData.error) {
+      return h('div', { className: 'dv-op-panel' },
+        h('div', { style: { color: 'var(--dsw-alias-state-error-primary)', padding: 20 } }, '❌ ', indexData.error),
+        h('div', { className: 'dv-btn-stack' },
+          h('button', { className: 'dv-btn', onClick: () => setShowStructuredIndex(false) }, '← 返回')
+        )
+      );
+    }
+
+    const reqs = indexData.requirements || [];
+    const featureIndex = indexData.featureIndex || {};
+    const fieldIndex = indexData.fieldIndex || {};
+    const tagIndex = indexData.tagIndex || {};
+
+    return h('div', { className: 'dv-op-panel' },
+      h('div', { className: 'dv-op-header' },
+        h('span', null, '📊 索引详情')
+      ),
+      indexData.builtAt && h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginBottom: 12 } },
+        '构建时间：', new Date(indexData.builtAt).toLocaleString()
+      ),
+
+      // Requirements list
+      h('div', { style: { marginBottom: 16 } },
+        h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 8 } }, '📋 需求列表（', reqs.length, '）'),
+        h('div', { style: { maxHeight: 200, overflow: 'auto' } },
+          reqs.map((req, i) => h('div', { key: i, style: { marginBottom: 8, padding: 8, background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 4, fontSize: 11 } },
+            h('div', { style: { fontWeight: 600 } }, req.id, ' - ', req.title),
+            h('div', { style: { color: 'var(--dsw-alias-label-secondary)' } },
+              req.developer, ' | ', req.date, ' | ', req.type
+            ),
+            req.summary && h('div', { style: { marginTop: 4 } }, req.summary)
+          ))
+        )
+      ),
+
+      // Feature index
+      Object.keys(featureIndex).length > 0 && h('div', { style: { marginBottom: 16 } },
+        h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 8 } }, '🎯 功能点索引（', Object.keys(featureIndex).length, '）'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          Object.entries(featureIndex).map(([feature, reqIds]) =>
+            h('div', { key: feature, style: { padding: '4px 8px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 4, fontSize: 10 } },
+              h('div', { style: { fontWeight: 600 } }, feature),
+              h('div', { style: { color: 'var(--dsw-alias-label-secondary)', fontSize: 9 } }, reqIds.length, ' 个需求')
+            )
+          )
+        )
+      ),
+
+      // Field index
+      Object.keys(fieldIndex).length > 0 && h('div', { style: { marginBottom: 16 } },
+        h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 8 } }, '🗂️ 字段索引（', Object.keys(fieldIndex).length, '）'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          Object.entries(fieldIndex).map(([field, reqIds]) =>
+            h('code', { key: field, style: { padding: '4px 8px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 4, fontSize: 10 } },
+              field, ' (', reqIds.length, ')'
+            )
+          )
+        )
+      ),
+
+      // Tag index
+      Object.keys(tagIndex).length > 0 && h('div', { style: { marginBottom: 16 } },
+        h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 8 } }, '🏷️ 标签索引（', Object.keys(tagIndex).length, '）'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          Object.entries(tagIndex).map(([tag, reqIds]) =>
+            h('span', { key: tag, className: 'dv-badge dv-badge-success', style: { fontSize: 10 } },
+              tag, ' (', reqIds.length, ')'
+            )
+          )
+        )
+      ),
+
+      h('div', { className: 'dv-btn-stack', style: { marginTop: 16 } },
+        h('button', { className: 'dv-btn', onClick: () => setShowStructuredIndex(false) }, '← 返回')
+      )
+    );
+  };
+
+  if (showStructuredIndex) {
+    return IndexViewer();
+  }
+
+  if (showIndexFile && indexContent) {
+    return h('div', { className: 'dv-op-panel' },
+      h('pre', {
+        style: {
+          background: 'var(--dsw-alias-bg-layer-2)',
+          padding: 12,
+          borderRadius: 6,
+          fontSize: 11,
+          maxHeight: 400,
+          overflow: 'auto',
+          fontFamily: 'ui-monospace, monospace',
+        }
+      }, indexContent),
+      h('div', { className: 'dv-btn-stack', style: { marginTop: 12 } },
+        h('button', { className: 'dv-btn', onClick: () => setShowIndexFile(false) }, '← 返回')
+      )
+    );
+  }
+
+  return h('div', { className: 'dv-op-panel' },
+    // 4.17: Index status
+    h('div', { className: 'dv-op-info' },
+      h('div', null, '状态：',
+        indexStatus?.built
+          ? h('span', { style: { color: 'var(--dsw-alias-state-success-primary)', fontWeight: 600 } }, '已构建')
+          : h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, '未构建')
+      ),
+      // 4.18: Build time
+      indexStatus?.builtAt && h('div', null, '构建时间：', new Date(indexStatus.builtAt).toLocaleString())
+    ),
+
+    // 4.19: Statistics grid
+    indexStatus?.stats && h('div', { className: 'dv-stats-grid' },
+      h('div', { className: 'dv-stats-cell' }, '需求数：', h('strong', null, indexStatus.stats.requirements)),
+      h('div', { className: 'dv-stats-cell' }, '功能点：', h('strong', null, indexStatus.stats.features)),
+      h('div', { className: 'dv-stats-cell' }, '字段数：', h('strong', null, indexStatus.stats.fields)),
+      h('div', { className: 'dv-stats-cell' }, '标签数：', h('strong', null, indexStatus.stats.tags))
+    ),
+
+    h('div', { className: 'dv-btn-stack', style: { marginBottom: 12 } },
+      h('button', {
+        className: 'dv-btn dv-btn-primary',
+        onClick: handleRebuild,
+        disabled: rebuilding
+      }, rebuilding ? '重建中...' : '🔨 重建索引'),
+      // 4.20: View index file
+      h('button', {
+        className: 'dv-btn',
+        onClick: handleViewStructuredIndex,
+        disabled: !indexStatus?.built
+      }, '📊 查看索引详情'),
+      h('button', {
+        className: 'dv-btn',
+        onClick: handleViewIndex,
+        disabled: !indexStatus?.built
+      }, '📄 查看原始文件')
+    ),
+
+    error && h('div', { style: { color: 'var(--dsw-alias-state-error-primary)', fontSize: 12, marginBottom: 8 } }, '❌ ', error),
+    success && h('div', { style: { color: 'var(--dsw-alias-state-success-primary)', fontSize: 12, marginBottom: 8 } }, success)
+  );
+}
+
+module.exports = { IndexPanel };

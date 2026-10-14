@@ -1,9 +1,13 @@
 {
   "docsDir": "docs",
-  "workspaceId": "7adbcce6-a012-4992-9c3d-f723d2c386f3",
+  "workspaceId": "f9b24289-f677-4005-9499-c884a6e57002",
   "ai": {
-    "prompts": {}
+    "prompts": {},
+    "selectedModel": "glm-5",
+    "skillBindings": {
+      "phased-code-analysis-requirement": null
+    }
   },
   "developerName": "lihanping",
-  "requirementId": "2026-10-08-p1-implementation"
+  "requirementId": "2026-10-10-包材报价管理-增加导出功能"
 }

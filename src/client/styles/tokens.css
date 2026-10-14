@@ -1,0 +1,17 @@
+/* Plugin-specific CSS custom properties */
+:root {
+  /* Spacing scale (8px base) */
+  --rh-space-xs: 4px;
+  --rh-space-sm: 8px;
+  --rh-space-md: 12px;
+  --rh-space-lg: 16px;
+  --rh-space-xl: 24px;
+
+  /* Rail dimensions */
+  --rh-rail-width: 52px;
+  --rh-rail-btn-size: 52px;
+
+  /* Panel dimensions */
+  --rh-tree-min-width: 180px;
+  --rh-tree-max-width: 320px;
+}

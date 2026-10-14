@@ -1,3 +1,5 @@
+# ReqHub 插件配置
+# 只需要插入 req-hub 插件，skills 服务由 preset 提供
 - insert:
     - id: req-hub
       name: '@local/req-hub'

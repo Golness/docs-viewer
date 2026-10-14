@@ -1,0 +1,141 @@
+/* Markdown rendering styles */
+
+.dv-markdown {
+  line-height: 1.6;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dv-markdown h1,
+.dv-markdown h2,
+.dv-markdown h3,
+.dv-markdown h4,
+.dv-markdown h5,
+.dv-markdown h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dv-markdown h1 {
+  font-size: 1.8em;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  padding-bottom: 0.3em;
+}
+
+.dv-markdown h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  padding-bottom: 0.3em;
+}
+
+.dv-markdown h3 {
+  font-size: 1.25em;
+}
+
+.dv-markdown h4 {
+  font-size: 1.1em;
+}
+
+.dv-markdown p {
+  margin: 0.8em 0;
+}
+
+.dv-markdown ul,
+.dv-markdown ol {
+  margin: 0.8em 0;
+  padding-left: 2em;
+}
+
+.dv-markdown li {
+  margin: 0.3em 0;
+}
+
+.dv-markdown code {
+  background: var(--dsw-alias-bg-layer-2);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.dv-markdown pre {
+  background: var(--dsw-alias-bg-layer-2);
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.dv-markdown pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.dv-markdown blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.dv-markdown a {
+  color: var(--dsw-alias-brand-primary);
+  text-decoration: none;
+}
+
+.dv-markdown a:hover {
+  text-decoration: underline;
+}
+
+.dv-markdown table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.dv-markdown th,
+.dv-markdown td {
+  border: 1px solid var(--dsw-alias-border-l1);
+  padding: 0.5em;
+  text-align: left;
+}
+
+.dv-markdown th {
+  background: var(--dsw-alias-bg-layer-2);
+  font-weight: 600;
+}
+
+.dv-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.dv-markdown hr {
+  border: none;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  margin: 2em 0;
+}
+
+.dv-markdown .mermaid-diagram {
+  margin: 1.5em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.dv-markdown .mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.dv-markdown code.language-mermaid {
+  display: block;
+  background: var(--dsw-alias-bg-layer-2);
+  padding: 1em;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  white-space: pre;
+  overflow-x: auto;
+}
