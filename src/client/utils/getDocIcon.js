@@ -1,14 +1,24 @@
 'use strict';
 
-function getDocIcon(type) {
-  const icons = {
-    'prd': '📋',
-    'tech': '🔧',
-    'api': '🔌',
-    'test': '🧪',
-    'default': '📄',
+const React = require('react');
+const h = React.createElement;
+const { createIconComponents } = require('../icons.js');
+
+const { IconClipboard, IconDesign, IconSearch, IconFile } = createIconComponents(h);
+
+function getDocIcon(type, size) {
+  const iconMap = {
+    requirement: IconClipboard,
+    design: IconDesign,
+    cr: IconSearch,
+    other: IconFile,
+    prd: IconClipboard,
+    tech: IconDesign,
+    api: IconSearch,
+    test: IconFile,
   };
-  return icons[type] || icons.default;
+  const Icon = iconMap[type] || IconFile;
+  return h(Icon, { size: size || 14 });
 }
 
 module.exports = { getDocIcon };

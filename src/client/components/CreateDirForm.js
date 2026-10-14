@@ -6,6 +6,9 @@ const { useState, useEffect } = React;
 
 const { ROUTE } = require('../constants.js');
 const { DocsViewerContext } = require('../context.js');
+const { createIconComponents } = require('../icons.js');
+
+const { IconFolder, IconError } = createIconComponents(h);
 
 // 解析分支名，返回 { developer, date, title, requirementId } 或 null
 // 与服务端 src/server/utils.js 的 parseBranchName 保持一致
@@ -95,33 +98,33 @@ function CreateDirForm({ workspaceId, docsDir, onClose }) {
     }
   };
 
-  return h('div', { className: 'dv-op-panel' },
-    h('div', { className: 'dv-op-hint' }, '基于 Git 分支命名规范创建需求文档目录'),
+  return h('div', { className: 'rh-op-panel' },
+    h('div', { className: 'rh-op-hint' }, '基于 Git 分支命名规范创建需求文档目录'),
 
-    h('div', { className: 'dv-form-group' },
-      h('label', { className: 'dv-form-label' }, '开发者'),
-      h('input', { className: 'dv-form-input', type: 'text', placeholder: 'zhangsan', value: developer, onChange: e => setDeveloper(e.target.value) })
+    h('div', { className: 'rh-form-group' },
+      h('label', { className: 'rh-form-label' }, '开发者'),
+      h('input', { className: 'rh-form-input', type: 'text', placeholder: 'zhangsan', value: developer, onChange: e => setDeveloper(e.target.value) })
     ),
-    h('div', { className: 'dv-form-group' },
-      h('label', { className: 'dv-form-label' }, '日期'),
-      h('input', { className: 'dv-form-input', type: 'date', value: date, onChange: e => setDate(e.target.value) })
+    h('div', { className: 'rh-form-group' },
+      h('label', { className: 'rh-form-label' }, '日期'),
+      h('input', { className: 'rh-form-input', type: 'date', value: date, onChange: e => setDate(e.target.value) })
     ),
-    h('div', { className: 'dv-form-group' },
-      h('label', { className: 'dv-form-label' }, '需求简述'),
-      h('input', { className: 'dv-form-input', type: 'text', placeholder: '新增报表导出功能', value: title, onChange: e => setTitle(e.target.value) })
+    h('div', { className: 'rh-form-group' },
+      h('label', { className: 'rh-form-label' }, '需求简述'),
+      h('input', { className: 'rh-form-input', type: 'text', placeholder: '新增报表导出功能', value: title, onChange: e => setTitle(e.target.value) })
     ),
 
-    previewPath && h('div', { className: 'dv-path-preview' },
+    previewPath && h('div', { className: 'rh-path-preview' },
       '→ 将创建目录：', h('code', null, previewPath)
     ),
 
-    error && h('div', { style: { color: 'var(--dsw-alias-state-error-primary)', fontSize: 12, marginBottom: 8 } }, '❌ ', error),
+    error && h('div', { style: { color: 'var(--dsw-alias-state-error-primary)', fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 } }, h(IconError, { size: 14 }), error),
     success && h('div', { style: { color: 'var(--dsw-alias-state-success-primary)', fontSize: 12, marginBottom: 8 } }, success),
 
-    h('div', { className: 'dv-btn-row' },
-      h('button', { className: 'dv-btn dv-btn-primary', onClick: handleCreate, disabled: loading },
-        loading ? '创建中...' : '📁 创建目录'),
-      h('button', { className: 'dv-btn', onClick: onClose }, '取消')
+    h('div', { className: 'rh-btn-row' },
+      h('button', { className: 'rh-btn rh-btn-primary', onClick: handleCreate, disabled: loading },
+        loading ? '创建中...' : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconFolder, { size: 14 }), ' 创建目录')),
+      h('button', { className: 'rh-btn', onClick: onClose }, '取消')
     )
   );
 }

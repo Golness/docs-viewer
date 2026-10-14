@@ -5,6 +5,9 @@ const h = React.createElement;
 const { useState } = React;
 const { ROUTE } = require('../constants.js');
 const { InputModal } = require('./InputModal.js');
+const { createIconComponents } = require('../icons.js');
+
+const { IconFolderOpen } = createIconComponents(h);
 
 function TopBar({ docsDir, currentWorkspace, currentReq, onEditDocsDir, onChangeWorkspace, onChangeReq, onLocateSessionReq }) {
   const [showPathModal, setShowPathModal] = useState(false);
@@ -44,47 +47,52 @@ function TopBar({ docsDir, currentWorkspace, currentReq, onEditDocsDir, onChange
     }
   };
 
-  return h('div', { className: 'dv-topbar' },
-    h('div', { className: 'dv-topbar-left' },
+  return h('div', { className: 'rh-topbar' },
+    h('div', { className: 'rh-topbar-left' },
       // 定位到当前会话需求目录按钮
       h('button', {
-        className: 'dv-btn dv-btn-primary',
+        className: 'rh-btn rh-btn-primary',
         onClick: onLocateSessionReq,
         title: '自动定位到当前 DSH 会话对应的需求文档目录',
+        'aria-label': '定位到当前会话需求',
         style: { marginRight: 12, padding: '4px 12px', fontSize: 12 }
       }, '定位会话需求'),
 
       // 工作区
-      h('span', { className: 'dv-topbar-label' }, '工作区:'),
+      h('span', { className: 'rh-topbar-label' }, '工作区:'),
       h('span', {
-          className: `dv-topbar-value${currentWorkspace ? ' selected' : ' unselected'}`,
+          className: `rh-topbar-value${currentWorkspace ? ' selected' : ' unselected'}`,
           onClick: onChangeWorkspace,
           title: '点击切换工作区',
+          role: 'button',
+          'aria-label': `工作区: ${currentWorkspace?.title || currentWorkspace?.id || '未选择'}`,
         }, currentWorkspace?.title || currentWorkspace?.id || '(未选择)'),
 
       // 项目路径
-      h('span', { className: 'dv-topbar-label' }, '项目路径:'),
+      h('span', { className: 'rh-topbar-label' }, '项目路径:'),
       h('span', {
-          className: 'dv-topbar-value selected',
+          className: 'rh-topbar-value selected',
           onClick: () => setShowPathModal(true),
           title: '点击修改项目 docs 路径',
+          role: 'button',
+          'aria-label': `项目路径: ${docsDir}`,
         }, docsDir),
 
       // 需求目录
-      h('span', { className: 'dv-topbar-label' }, '需求目录:'),
+      h('span', { className: 'rh-topbar-label' }, '需求目录:'),
       h('span', {
-          className: `dv-topbar-value${currentReq ? ' selected' : ' unselected'}`,
+          className: `rh-topbar-value${currentReq ? ' selected' : ' unselected'}`,
           onClick: onChangeReq,
           title: '点击选择需求目录',
         }, currentReq ? `${currentReq.date?.slice(5)} ${currentReq.title}` : '(未选择)'),
 
       // 在文件资源管理器中打开按钮
       currentReq && h('button', {
-        className: 'dv-btn',
+        className: 'rh-btn',
         onClick: handleOpenInExplorer,
         title: '在文件资源管理器中打开此需求目录',
-        style: { marginLeft: 8, padding: '2px 8px', fontSize: 11 }
-      }, '📂')
+        style: { marginLeft: 8, padding: '2px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }
+      }, h(IconFolderOpen, { size: 14 }))
     ),
 
     // 项目路径输入弹框

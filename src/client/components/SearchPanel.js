@@ -4,6 +4,9 @@ const React = require('react');
 const h = React.createElement;
 const { useState } = React;
 const { useSearch } = require('../hooks/useSearch.js');
+const { createIconComponents } = require('../icons.js');
+
+const { IconSearch, IconChart, IconRobot, IconLightbulb, IconTag, IconWarning, IconError } = createIconComponents(h);
 
 // ─── SearchBar (3.1, 3.2) ───────────────────────────────────────
 function SearchBar({ onSearch, searchType, onTypeChange, searchMode, onModeChange, loading }) {
@@ -24,27 +27,28 @@ function SearchBar({ onSearch, searchType, onTypeChange, searchMode, onModeChang
     { id: 'tag', label: '标签' },
   ];
 
-  return h('div', { className: 'dv-search-bar' },
+  return h('div', { className: 'rh-search-bar', role: 'search' },
     h('div', { style: { display: 'flex', gap: 8, marginBottom: 6 } },
       h('input', {
-        className: 'dv-search-input',
+        className: 'rh-search-input',
         type: 'text',
         placeholder: searchMode === 'ai' ? 'AI 智能搜索：输入自然语言描述...' : '搜索功能点、字段、标签...',
         value: query,
         onChange: e => setQuery(e.target.value),
         onKeyDown: handleKeyDown,
         disabled: loading,
+        'aria-label': '搜索',
         style: { flex: 1, marginBottom: 0 },
       }),
       h('button', {
-        className: 'dv-btn dv-btn-primary',
+        className: 'rh-btn rh-btn-primary',
         onClick: handleSearch,
         disabled: loading || !query.trim(),
         style: {
           padding: '7px 16px',
           whiteSpace: 'nowrap',
         }
-      }, loading ? '搜索中...' : '🔍 搜索')
+      }, loading ? '搜索中...' : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconSearch, { size: 14 }), ' 搜索'))
     ),
     // 3.14: Search mode toggle (segmented control)
     searchMode !== undefined && onModeChange && h('div', { style: { display: 'flex', gap: 8, marginBottom: 8 } },
@@ -59,36 +63,36 @@ function SearchBar({ onSearch, searchType, onTypeChange, searchMode, onModeChang
         }
       },
         h('button', {
-          className: 'dv-btn',
+          className: 'rh-btn',
           onClick: () => onModeChange('exact'),
           style: {
             padding: '4px 12px',
             fontSize: 11,
             margin: 0,
             border: 'none',
-            background: searchMode === 'exact' ? 'var(--dsw-alias-brand-primary-new-colorprimary-new-color)' : 'transparent',
+            background: searchMode === 'exact' ? 'var(--dsw-alias-brand-primary)' : 'transparent',
             color: searchMode === 'exact' ? 'var(--dsw-alias-label-primary-foreground)' : 'var(--dsw-alias-label-secondary)',
           }
         }, '精确搜索'),
         h('button', {
-          className: 'dv-btn',
+          className: 'rh-btn',
           onClick: () => onModeChange('ai'),
           style: {
             padding: '4px 12px',
             fontSize: 11,
             margin: 0,
             border: 'none',
-            background: searchMode === 'ai' ? 'var(--dsw-alias-brand-primary-new-colorprimary-new-color)' : 'transparent',
+            background: searchMode === 'ai' ? 'var(--dsw-alias-brand-primary)' : 'transparent',
             color: searchMode === 'ai' ? 'var(--dsw-alias-label-primary-foreground)' : 'var(--dsw-alias-label-secondary)',
           }
         }, 'AI 智能搜索')
       )
     ),
-    h('div', { className: 'dv-search-tags' },
+    h('div', { className: 'rh-search-tags' },
       types.map(t =>
         h('button', {
           key: t.id,
-          className: `dv-search-tag${searchType === t.id ? ' active' : ''}`,
+          className: `rh-search-tag${searchType === t.id ? ' active' : ''}`,
           onClick: () => onTypeChange && onTypeChange(t.id),
         }, t.label)
       )
@@ -116,9 +120,9 @@ function FieldAssociationsPanel({ field, associations, onSelectReq }) {
         fontWeight: 700,
         borderBottom: '1px solid var(--dsw-alias-border-l1)',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        color: 'var(--dsw-alias-brand-primary-new-colorprimary-new-color)',
+        color: 'var(--dsw-alias-brand-primary)',
       }
-    }, `📊 ${field} — 跨需求关联`),
+    }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconChart, { size: 14 }), ` ${field} — 跨需求关联`)),
     associations.map((assoc, idx) =>
       h('div', {
         key: assoc.id,
@@ -144,8 +148,8 @@ function FieldAssociationsPanel({ field, associations, onSelectReq }) {
 // ─── SearchResults (3.3, 3.9-3.11, 3.13) ────────────────────────
 function SearchResults({ results, onSelectReq, searchMode }) {
   if (!results || results.length === 0) {
-    return h('div', { className: 'dv-empty', style: { padding: 20 } },
-      h('span', { className: 'dv-empty-icon' }, '🔍'),
+    return h('div', { className: 'rh-empty', style: { padding: 20 } },
+      h('span', { className: 'rh-empty-icon' }, h(IconSearch, { size: 32 })),
       '未找到匹配的需求'
     );
   }
@@ -157,21 +161,21 @@ function SearchResults({ results, onSelectReq, searchMode }) {
         padding: '8px 14px',
         fontSize: 12,
         fontWeight: 700,
-        color: 'var(--dsw-alias-brand-primary-new-colorprimary-new-color)',
+        color: 'var(--dsw-alias-brand-primary)',
         borderBottom: '1px solid var(--dsw-alias-border-l1)'
       }
-    }, '🤖 AI 搜索结果 ', h('span', { style: { fontWeight: 400, color: 'var(--dsw-alias-label-secondary)' } }, '（语义匹配）')),
+    }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconRobot, { size: 14 }), ' AI 搜索结果 ', h('span', { style: { fontWeight: 400, color: 'var(--dsw-alias-label-secondary)' } }, '（语义匹配）'))),
     results.map(r =>
       h('div', {
         key: r.id,
-        className: 'dv-result-card',
+        className: 'rh-result-card',
         onClick: () => onSelectReq && onSelectReq(r),
       },
-        h('div', { className: 'dv-result-card-head' },
-          h('span', { className: 'dv-result-title' }, r.title),
+        h('div', { className: 'rh-result-card-head' },
+          h('span', { className: 'rh-result-title' }, r.title),
           // 3.11: Scale badge
           r.type && r.type !== 'unknown' && h('span', {
-            className: `dv-badge dv-scale-${r.type}`
+            className: `rh-badge rh-scale-${r.type}`
           }, r.type === 'large' ? '大需求' : r.type === 'small' ? '小需求' : '中需求'),
           // 3.13: AI relevance badge
           searchMode === 'ai' && r.relevance !== undefined && h('span', {
@@ -184,28 +188,28 @@ function SearchResults({ results, onSelectReq, searchMode }) {
               color: 'var(--dsw-alias-state-info-primary)',
             }
           }, `语义匹配 ${r.relevance}%`),
-          h('span', { className: 'dv-result-meta' }, `${r.date} · ${r.developer}`)
+          h('span', { className: 'rh-result-meta' }, `${r.date} · ${r.developer}`)
         ),
         // 3.10: Summary
-        r.summary && h('div', { className: 'dv-result-summary' }, r.summary),
+        r.summary && h('div', { className: 'rh-result-summary' }, r.summary),
         // Tags
         (r.matchedFeatures?.length > 0 || r.matchedFields?.length > 0 || r.matchedTags?.length > 0) &&
-          h('div', { className: 'dv-result-tags' },
-            r.matchedFeatures?.map(f => h('span', { key: f, className: 'dv-result-tag' }, `🔹 ${f}`)),
-            r.matchedFields?.map(f => h('span', { key: f, className: 'dv-result-tag' }, `📊 ${f}`)),
-            r.matchedTags?.map(t => h('span', { key: t, className: 'dv-result-tag' }, `🏷️ ${t}`))
+          h('div', { className: 'rh-result-tags' },
+            r.matchedFeatures?.map(f => h('span', { key: f, className: 'rh-result-tag' }, f)),
+            r.matchedFields?.map(f => h('span', { key: f, className: 'rh-result-tag', style: { display: 'inline-flex', alignItems: 'center', gap: 2 } }, h(IconChart, { size: 10 }), f)),
+            r.matchedTags?.map(t => h('span', { key: t, className: 'rh-result-tag', style: { display: 'inline-flex', alignItems: 'center', gap: 2 } }, h(IconTag, { size: 10 }), t))
           ),
         // 3.13: AI match reason
         searchMode === 'ai' && r.reason && h('div', {
           style: {
             fontSize: 11,
-            color: 'var(--dsw-alias-brand-primary-new-colorprimary-new-color)',
+            color: 'var(--dsw-alias-brand-primary)',
             marginTop: 6,
             padding: '6px 10px',
             background: 'var(--dsw-alias-state-info-bg)',
             borderRadius: 4,
           }
-        }, '💡 AI 分析：', r.reason)
+        }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconLightbulb, { size: 12 }), ' AI 分析：'), ' ', r.reason)
       )
     )
   );
@@ -250,15 +254,15 @@ function SearchPanel({ workspaceId, onSelectReq }) {
         padding: '8px 14px', fontSize: 12, color: 'var(--dsw-alias-state-warning-primary)',
         background: 'var(--dsw-alias-state-warning-bg)', borderBottom: '1px solid var(--dsw-alias-border-l1)',
       }
-    }, '⚠️ 索引未构建，请先点击「🔨 索引」按钮重建索引'),
+    }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconWarning, { size: 14 }), ' 索引未构建，请先点击「索引」按钮重建索引')),
     // Show error message if search failed
     searchError && searched && !loading && h('div', {
       style: {
         padding: '8px 14px', fontSize: 12, color: 'var(--dsw-alias-state-error-primary)',
         background: 'var(--dsw-alias-state-error-bg)', borderBottom: '1px solid var(--dsw-alias-border-l1)',
       }
-    }, '❌ ', searchError),
-    searched && !loading && !searchError && h('div', { className: 'dv-search-count' },
+    }, h(IconError, { size: 14 }), ' ', searchError),
+    searched && !loading && !searchError && h('div', { className: 'rh-search-count' },
       `找到 `, h('strong', null, results.length), ` 个需求`
     ),
     // Field associations panel (3.6, 3.16)
@@ -282,7 +286,7 @@ function SearchPanel({ workspaceId, onSelectReq }) {
                 gap: 8,
               }
             },
-              h('div', { className: 'dv-spinner', style: { width: 14, height: 14, margin: 0 } }),
+              h('div', { className: 'rh-spinner', style: { width: 14, height: 14, margin: 0 } }),
               aiProgress
             ),
             // Streaming content preview
@@ -305,8 +309,8 @@ function SearchPanel({ workspaceId, onSelectReq }) {
           )
         : searched
           ? h(SearchResults, { results, onSelectReq: handleSelectReq, searchMode })
-          : h('div', { className: 'dv-empty', style: { padding: 20 } },
-              h('span', { className: 'dv-empty-icon' }, '🔍'),
+          : h('div', { className: 'rh-empty', style: { padding: 20 } },
+              h('span', { className: 'rh-empty-icon' }, h(IconSearch, { size: 32 })),
               '输入关键词搜索需求'
             )
     )

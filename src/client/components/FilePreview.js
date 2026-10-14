@@ -8,12 +8,10 @@ const { ROUTE, MARKED_SCRIPT_ID, MERMAID_SCRIPT_ID, HIGHLIGHT_SCRIPT_ID } = requ
 const { useScript } = require('../hooks/useScript.js');
 const { getMermaidTheme } = require('../utils/getMermaidTheme.js');
 const { sanitizeHtml } = require('../utils/sanitizeHtml.js');
+const { getDocIcon } = require('../utils/getDocIcon.js');
+const { createIconComponents } = require('../icons.js');
 
-// ─── Helpers ─────────────────────────────────────────────────────
-function getDocIcon(type) {
-  const icons = { requirement: '📋', design: '📐', cr: '🔍', other: '📄' };
-  return icons[type] || '📄';
-}
+const { IconClipboard, IconDesign, IconSearch, IconFile } = createIconComponents(h);
 
 // ─── FilePreview (Markdown + Mermaid + breadcrumb) ───────────────
 // Covers: 2.4, 2.5, 2.12, 2.13
@@ -132,23 +130,24 @@ function FilePreview({ workspaceId, relPath, name, requirement, onBack }) {
   // Breadcrumb (2.12)
   const docType = requirement?.type || 'other';
   const docTypeLabels = { requirement: '需求文档', design: '技术方案', cr: 'CR 文档', other: '文档' };
+  const DocIcon = getDocIcon(docType);
   const breadcrumbText = requirement
-    ? `${getDocIcon(docType)} ${name}`
+    ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(DocIcon, { size: 12 }), name)
     : name;
 
   return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--dsw-alias-bg-base)' } },
-    h('div', { className: 'dv-preview-body' },
-      error ? h('span', { className: 'dv-error' }, 'Error: ', error)
+    h('div', { className: 'rh-preview-body' },
+      error ? h('span', { className: 'rh-error' }, 'Error: ', error)
         : isHtml
           ? h('iframe', {
               srcDoc: text,
               title: name,
-              className: 'dv-preview-iframe',
+              className: 'rh-preview-iframe',
               sandbox: 'allow-scripts allow-same-origin'
             })
           : isMd
             ? (markedLoaded && rendered)
-              ? h('div', { ref: markdownRef, className: 'dv-markdown', dangerouslySetInnerHTML: { __html: rendered } })
+              ? h('div', { ref: markdownRef, className: 'rh-markdown', dangerouslySetInnerHTML: { __html: rendered } })
               : h('pre', { style: { whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12 } }, text || 'Loading...')
             : h('pre', { style: { whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12 } }, text),
     ),

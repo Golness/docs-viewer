@@ -4,51 +4,13 @@ const React = require('react');
 const h = React.createElement;
 const { useState, useEffect, useRef, useLayoutEffect } = React;
 const { ROUTE, MARKED_SCRIPT_ID, MERMAID_SCRIPT_ID, HIGHLIGHT_SCRIPT_ID } = require('../constants.js');
+const { createIconComponents } = require('../icons.js');
+const { useScript } = require('../hooks/useScript.js');
+const { getMermaidTheme } = require('../utils/getMermaidTheme.js');
+const { sanitizeHtml } = require('../utils/sanitizeHtml.js');
+const { Spinner } = require('./Spinner.js');
 
-// ─── Script loading hook ─────────────────────────────────────────
-function useScript(src, id, globalName) {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    if (window[globalName]) { setLoaded(true); return; }
-    let script = document.getElementById(id);
-    if (script) {
-      const checkInterval = setInterval(() => {
-        if (window[globalName]) { clearInterval(checkInterval); setLoaded(true); }
-      }, 100);
-      const timeout = setTimeout(() => { clearInterval(checkInterval); setError(true); }, 5000);
-      return () => { clearInterval(checkInterval); clearTimeout(timeout); };
-    }
-    script = document.createElement('script');
-    script.id = id;
-    script.src = src;
-    script.onload = () => setLoaded(true);
-    script.onerror = () => setError(true);
-    document.head.appendChild(script);
-  }, [src, id, globalName]);
-
-  return { loaded, error };
-}
-
-function getMermaidTheme() {
-  const isDarkMode = document.documentElement.classList.contains('dark') ||
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return isDarkMode ? 'dark' : 'default';
-}
-
-function sanitizeHtml(html) {
-  let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  clean = clean.replace(/(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*'|javascript:[^\s>]+)/gi, '');
-  clean = clean.replace(/(?:href|src|action)\s*=\s*(?:"vbscript:[^"]*"|'vbscript:[^']*'|vbscript:[^\s>]+)/gi, '');
-  clean = clean.replace(/\ssrc\s*=\s*(?:"data:[^"]*"|'data:[^']*'|data:[^\s>]+)/gi, '');
-  return clean;
-}
-
-function Spinner() {
-  return h('div', { className: 'dv-loading' }, h('div', { className: 'dv-spinner' }), 'Loading…');
-}
+const { IconRobot, IconClipboard, IconLink, IconEye, IconSave, IconCheck, IconSync, IconExpand } = createIconComponents(h);
 
 // ─── SkillPreview (Markdown + Mermaid) ───────────────
 function SkillPreview({ skillName, workspaceId, onBack }) {
@@ -192,21 +154,21 @@ function SkillPreview({ skillName, workspaceId, onBack }) {
       background: 'var(--dsw-alias-bg-layer-1)'
     }},
       h('button', {
-        className: 'dv-btn dv-btn-secondary',
+        className: 'rh-btn rh-btn-secondary',
         onClick: onBack,
         style: { fontSize: 12, padding: '4px 10px' }
       }, '← 返回设置'),
       h('div', { style: { flex: 1 } },
-        h('div', { style: { fontWeight: 600, fontSize: 14 } }, `🔗 ${skillName}`),
+        h('div', { style: { fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 } }, h(IconLink, { size: 14 }), ` ${skillName}`),
         description && h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginTop: 2 } }, description)
       )
     ),
     // Content
-    h('div', { className: 'dv-preview-body', style: { flex: 1, overflow: 'auto' } },
-      error ? h('span', { className: 'dv-error' }, 'Error: ', error)
+    h('div', { className: 'rh-preview-body', style: { flex: 1, overflow: 'auto' } },
+      error ? h('span', { className: 'rh-error' }, 'Error: ', error)
         : text
           ? (markedLoaded && rendered)
-            ? h('div', { ref: markdownRef, className: 'dv-markdown', dangerouslySetInnerHTML: { __html: rendered } })
+            ? h('div', { ref: markdownRef, className: 'rh-markdown', dangerouslySetInnerHTML: { __html: rendered } })
             : h(Spinner)
           : h(Spinner)
     )
@@ -327,7 +289,7 @@ function SettingsPanel({ workspaceId, onClose }) {
         body: JSON.stringify(settings)
       });
       if (res.ok) {
-        setMessage({ type: 'success', text: '✅ 设置已保存' });
+        setMessage({ type: 'success', text: h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconCheck, { size: 14 }), ' 设置已保存') });
         // Refresh prompt registry to reflect saved state
         const promptRes = await fetch(`${ROUTE}/prompt-registry`);
         if (promptRes.ok) setPromptRegistry(await promptRes.json());
@@ -402,10 +364,10 @@ function SettingsPanel({ workspaceId, onClose }) {
     });
   }
 
-  return h('div', { className: 'dv-op-panel', style: { overflowY: 'auto' } },
+  return h('div', { className: 'rh-op-panel', style: { overflowY: 'auto' } },
 
     message && h('div', {
-      className: `dv-alert dv-alert-${message.type}`,
+      className: `rh-alert rh-alert-${message.type}`,
       style: { marginBottom: 16 }
     }, message.text),
 
@@ -417,7 +379,7 @@ function SettingsPanel({ workspaceId, onClose }) {
         border: '1px solid var(--dsw-alias-border-l1)'
       }
     },
-      h('div', { style: { fontWeight: 600, marginBottom: 8 } }, '🤖 LLM 配置（DSH 全局）'),
+      h('div', { style: { fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 } }, h(IconRobot, { size: 16 }), ' LLM 配置（DSH 全局）'),
       llmConfig
         ? llmConfig.error
           ? h('div', { style: { color: 'var(--dsw-alias-state-error-primary)' } }, '错误: ', llmConfig.error)
@@ -435,10 +397,10 @@ function SettingsPanel({ workspaceId, onClose }) {
     ),
 
     // ── Model Selection ──
-    llmConfig && !llmConfig.error && llmConfig.models?.length > 0 && h('div', { className: 'dv-form-group', style: { display: 'block', marginBottom: 16 } },
-      h('label', { className: 'dv-form-label', style: { display: 'block', marginBottom: 8 } }, '选择 LLM 模型'),
+    llmConfig && !llmConfig.error && llmConfig.models?.length > 0 && h('div', { className: 'rh-form-group', style: { display: 'block', marginBottom: 16 } },
+      h('label', { className: 'rh-form-label', style: { display: 'block', marginBottom: 8 } }, '选择 LLM 模型'),
       h('select', {
-        className: 'dv-form-select',
+        className: 'rh-form-select',
         value: settings.ai.selectedModel,
         onChange: (e) => setSettings(prev => ({ ...prev, ai: { ...prev.ai, selectedModel: e.target.value } }))
       },
@@ -448,7 +410,7 @@ function SettingsPanel({ workspaceId, onClose }) {
 
     // ── Prompt Management Section ──
     h('div', { style: { marginBottom: 16 } },
-      h('div', { style: { fontWeight: 600, marginBottom: 12, fontSize: 13 } }, '📝 Prompt 管理'),
+      h('div', { style: { fontWeight: 600, marginBottom: 12, fontSize: 13 } }, 'Prompt 管理'),
       !promptRegistry
         ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)' } }, '加载 Prompt 列表...')
         : (() => {
@@ -461,8 +423,8 @@ function SettingsPanel({ workspaceId, onClose }) {
             });
 
             const categoryLabels = {
-              'default': '📋 基础功能',
-              'phased-sync': '🔄 分阶段同步'
+              'default': h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconClipboard, { size: 12 }), ' 基础功能'),
+              'phased-sync': h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconSync, { size: 12 }), ' 分阶段同步')
             };
 
             return Object.entries(groups).map(([category, prompts]) =>
@@ -504,7 +466,7 @@ function SettingsPanel({ workspaceId, onClose }) {
                         fontSize: 12
                       }
                     },
-                      h('span', { style: { fontSize: 10, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' } }, '▶'),
+                      h('span', { style: { display: 'inline-flex', fontSize: 10, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' } }, h(IconExpand, { size: 12 })),
                       h('span', { style: { fontWeight: 600 } }, meta.label),
                       hasSkillBinding && h('span', {
                         style: {
@@ -512,7 +474,7 @@ function SettingsPanel({ workspaceId, onClose }) {
                           background: 'var(--dsw-alias-brand-primary-bg)',
                           color: 'var(--dsw-alias-brand-primary)'
                         }
-                      }, `🔗 ${settings.ai.skillBindings[key]}`),
+                      }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconLink, { size: 10 }), ` ${settings.ai.skillBindings[key]}`)),
                       isCustomized && h('span', {
                         style: {
                           fontSize: 10, padding: '1px 6px', borderRadius: 8,
@@ -534,7 +496,7 @@ function SettingsPanel({ workspaceId, onClose }) {
                       // 说明卡片
                       h('div', { style: { marginBottom: 12, padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-3)', borderRadius: 6, borderLeft: '3px solid var(--dsw-alias-color-brand)' } },
                         h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 8, color: 'var(--dsw-alias-label-primary)' } },
-                          '📋 Prompt 结构说明'
+                          'Prompt 结构说明'
                         ),
                         h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', lineHeight: 1.6 } },
                           h('div', { style: { marginBottom: 6 } },
@@ -555,7 +517,7 @@ function SettingsPanel({ workspaceId, onClose }) {
                       // Skill 选择器
                       h('div', { style: { marginBottom: 12, padding: '8px 10px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 6, border: hasSkillBinding ? '1px solid var(--dsw-alias-color-brand)' : '1px solid var(--dsw-alias-border-l2)' } },
                         h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'var(--dsw-alias-label-primary)' } },
-                          '🔗 绑定 Skill 作为指令层'
+                          h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconLink, { size: 12 }), ' 绑定 Skill 作为指令层')
                         ),
                         h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8, lineHeight: 1.5 } },
                           '选择一个 Skill 作为执行指令。Skill 定义完整的任务流程，下方的 Prompt 提供业务数据模板。'
@@ -584,17 +546,17 @@ function SettingsPanel({ workspaceId, onClose }) {
                           ),
                           // 预览按钮
                           settings.ai.skillBindings?.[key] && h('button', {
-                            className: 'dv-btn dv-btn-secondary',
+                            className: 'rh-btn rh-btn-secondary',
                             onClick: (e) => { e.stopPropagation(); handlePreviewSkill(settings.ai.skillBindings[key]); },
                             style: { fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }
-                          }, '👁 预览')
+                          }, '预览')
                         )
                       ),
 
                       // Prompt 编辑区（数据模板）
                       h('div', { style: { marginBottom: 8, padding: '6px 8px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 6 } },
                         h('div', { style: { fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'var(--dsw-alias-label-primary)' } },
-                          '📝 Prompt 数据模板',
+                          'Prompt 数据模板',
                           hasSkillBinding && h('span', { style: { fontSize: 10, fontWeight: 400, marginLeft: 8, color: 'var(--dsw-alias-label-secondary)' } },
                             '（配合 Skill 使用，提供业务数据）'
                           )
@@ -603,7 +565,7 @@ function SettingsPanel({ workspaceId, onClose }) {
                           '定义业务数据模板，使用 {变量名} 插入动态内容。如：{currentDoc}、{codeDiff}、{commitList}'
                         ),
                         h('textarea', {
-                          className: 'dv-form-textarea',
+                          className: 'rh-form-textarea',
                           rows: 10,
                           value: currentCustom || meta.default,
                           onChange: (e) => handlePromptChange(key, e.target.value),
@@ -615,10 +577,10 @@ function SettingsPanel({ workspaceId, onClose }) {
                       // 操作按钮
                       (isCustomized || hasSkillBinding) && h('div', { style: { marginTop: 8, textAlign: 'right' } },
                         h('button', {
-                          className: 'dv-btn',
+                          className: 'rh-btn',
                           style: { fontSize: 11, padding: '4px 10px', color: 'var(--dsw-alias-state-warning-primary)' },
                           onClick: (e) => { e.stopPropagation(); handleResetPrompt(key); }
-                        }, '↩ 恢复默认')
+                        }, h(IconSync, { size: 12 }), ' 恢复默认')
                       )
                     )
                   );
@@ -629,9 +591,9 @@ function SettingsPanel({ workspaceId, onClose }) {
     ),
 
     // ── Actions ──
-    h('div', { className: 'dv-op-actions' },
-      h('button', { className: 'dv-btn dv-btn-secondary', onClick: onClose }, '取消'),
-      h('button', { className: 'dv-btn dv-btn-primary', onClick: handleSave, disabled: saving }, saving ? '保存中...' : '💾 保存')
+    h('div', { className: 'rh-op-actions' },
+      h('button', { className: 'rh-btn rh-btn-secondary', onClick: onClose }, '取消'),
+      h('button', { className: 'rh-btn rh-btn-primary', onClick: handleSave, disabled: saving }, saving ? '保存中...' : '保存')
     )
   );
 }

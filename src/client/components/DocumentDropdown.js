@@ -4,11 +4,10 @@ const React = require('react');
 const h = React.createElement;
 const { useState, useEffect } = React;
 const { ROUTE } = require('../constants.js');
+const { getDocIcon } = require('../utils/getDocIcon.js');
+const { createIconComponents } = require('../icons.js');
 
-function getDocIcon(type) {
-  const icons = { requirement: '📋', design: '📐', cr: '🔍', other: '📄' };
-  return icons[type] || '📄';
-}
+const { IconFile } = createIconComponents(h);
 
 function DocumentDropdown({ workspaceId, selectedReq, onSelectFile, onClose }) {
   const [tree, setTree] = useState(null);
@@ -52,35 +51,35 @@ function DocumentDropdown({ workspaceId, selectedReq, onSelectFile, onClose }) {
     }
   }
 
-  return h('div', { className: 'dv-modal-overlay', onClick: onClose },
-    h('div', { className: 'dv-modal', onClick: e => e.stopPropagation(), style: { minWidth: 400 } },
-      h('div', { className: 'dv-modal-title' }, '📄 查看文档'),
+  return h('div', { className: 'rh-modal-overlay', onClick: onClose, role: 'dialog', 'aria-modal': 'true', 'aria-label': '查看文档' },
+    h('div', { className: 'rh-modal', onClick: e => e.stopPropagation(), style: { minWidth: 400 } },
+      h('div', { className: 'rh-modal-title', style: { display: 'flex', alignItems: 'center', gap: 6 } }, h(IconFile, { size: 16 }), ' 查看文档'),
       loading
-        ? h('div', { className: 'dv-empty' }, '加载中...')
+        ? h('div', { className: 'rh-empty' }, '加载中...')
         : !selectedReq
-          ? h('div', { className: 'dv-empty' }, '请先选择需求目录')
+          ? h('div', { className: 'rh-empty' }, '请先选择需求目录')
           : allFiles.length === 0
-            ? h('div', { className: 'dv-empty' }, '当前需求目录下暂无文档')
-            : h('div', { className: 'dv-modal-list', style: { maxHeight: 400 } },
+            ? h('div', { className: 'rh-empty' }, '当前需求目录下暂无文档')
+            : h('div', { className: 'rh-modal-list', style: { maxHeight: 400 } },
                 allFiles.map((file, idx) => {
                   const docTypeLabels = { requirement: '需求', design: '技术方案', cr: 'CR', other: '文档' };
                   return h('div', {
                     key: `${file.reqId}-${file.name}-${idx}`,
-                    className: 'dv-modal-item',
+                    className: 'rh-modal-item',
                     onClick: () => { onSelectFile(file); onClose(); },
                   },
-                    h('span', { className: 'dv-modal-item-icon' }, getDocIcon(file.type)),
-                    h('span', { className: 'dv-modal-item-name' },
+                    h('span', { className: 'rh-modal-item-icon' }, getDocIcon(file.type)),
+                    h('span', { className: 'rh-modal-item-name' },
                       h('span', { style: { fontWeight: 600 } }, file.name),
-                      h('span', { className: `dv-doctype-tag ${file.type}` }, docTypeLabels[file.type] || '文档'),
+                      h('span', { className: `rh-doctype-tag ${file.type}` }, docTypeLabels[file.type] || '文档'),
                       h('span', { style: { color: 'var(--dsw-alias-label-secondary)', fontSize: 11, marginLeft: 8 } },
                         `${file.developer} / ${file.reqDate.slice(5)} ${file.reqTitle}`)
                     )
                   );
                 })
               ),
-      h('div', { className: 'dv-modal-actions' },
-        h('button', { className: 'dv-btn', onClick: onClose }, '关闭')
+      h('div', { className: 'rh-modal-actions' },
+        h('button', { className: 'rh-btn', onClick: onClose }, '关闭')
       )
     )
   );

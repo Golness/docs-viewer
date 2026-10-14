@@ -4,6 +4,9 @@ const React = require('react');
 const h = React.createElement;
 const { useState, useEffect } = React;
 const { ROUTE } = require('../constants.js');
+const { createIconComponents } = require('../icons.js');
+
+const { IconSearch, IconInfo, IconWarning, IconError } = createIconComponents(h);
 
 // ─── LogPanel (4.9, 4.26) ─────────────────────────────────────────
 function LogPanel({ onClose }) {
@@ -46,11 +49,11 @@ function LogPanel({ onClose }) {
   // 日志等级相关
   const getLevelIcon = (level) => {
     switch (level) {
-      case 'debug': return '🔍';
-      case 'info': return 'ℹ️';
-      case 'warn': return '⚠️';
-      case 'error': return '❌';
-      default: return 'ℹ️';
+      case 'debug': return h(IconSearch, { size: 14 });
+      case 'info': return h(IconInfo, { size: 14 });
+      case 'warn': return h(IconWarning, { size: 14 });
+      case 'error': return h(IconError, { size: 14 });
+      default: return h(IconInfo, { size: 14 });
     }
   };
 
@@ -143,7 +146,7 @@ function LogPanel({ onClose }) {
     !selectedLevels.includes('error') ||
     selectedTags.length > 0;
 
-  return h('div', { className: 'dv-op-panel' },
+  return h('div', { className: 'rh-op-panel', role: 'log', 'aria-live': 'polite' },
     // 顶部工具栏
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '8px 0', borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
       h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
@@ -156,7 +159,7 @@ function LogPanel({ onClose }) {
           '自动刷新'
         ),
         h('button', {
-          className: 'dv-btn dv-btn-secondary',
+          className: 'rh-btn rh-btn-secondary',
           onClick: async () => {
             try {
               await fetch(`${ROUTE}/logs/clear`, { method: 'POST' });
@@ -168,7 +171,7 @@ function LogPanel({ onClose }) {
         }, '清空')
       ),
       hasFilterChanges && h('button', {
-        className: 'dv-btn dv-btn-secondary',
+        className: 'rh-btn rh-btn-secondary',
         onClick: resetFilters
       }, '重置筛选')
     ),
@@ -225,7 +228,10 @@ function LogPanel({ onClose }) {
               transition: 'all 0.15s',
               fontWeight: isSelected ? 600 : 400
             }
-          }, `${getLevelIcon(level)} ${getLevelLabel(level)} (${count})`);
+          }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } },
+            getLevelIcon(level),
+            h('span', null, `${getLevelLabel(level)} (${count})`)
+          ));
         })
       )
     ),
@@ -276,9 +282,9 @@ function LogPanel({ onClose }) {
     ),
 
     // 日志列表
-    h('div', { className: 'dv-log-list' },
+    h('div', { className: 'rh-log-list' },
       filteredLogs.length === 0
-        ? h('div', { className: 'dv-empty' },
+        ? h('div', { className: 'rh-empty' },
             logs.length === 0
               ? '暂无日志'
               : selectedLevels.length === 0
@@ -287,24 +293,24 @@ function LogPanel({ onClose }) {
         : filteredLogs.map((log, idx) =>
             h('div', {
               key: idx,
-              className: 'dv-log-item',
+              className: 'rh-log-item',
               style: { borderLeft: `3px solid ${getLevelColor(log.level)}` }
             },
-              h('div', { className: 'dv-log-item-header' },
-                h('span', { className: 'dv-log-icon' }, getLevelIcon(log.level)),
+              h('div', { className: 'rh-log-item-header' },
+                h('span', { className: 'rh-log-icon' }, getLevelIcon(log.level)),
                 h('span', {
-                  className: 'dv-log-time',
+                  className: 'rh-log-time',
                   style: { color: getLevelColor(log.level) }
                 }, new Date(log.timestamp).toLocaleTimeString()),
                 h('span', {
-                  className: 'dv-log-type',
+                  className: 'rh-log-type',
                   style: {
                     background: 'var(--dsw-alias-bg-layer-3)',
                     color: 'var(--dsw-alias-label-secondary)'
                   }
                 }, logMeta.tags[log.tag] || log.tag)
               ),
-              h('div', { className: 'dv-log-message' }, log.message),
+              h('div', { className: 'rh-log-message' }, log.message),
               // 显示附加数据（debug 级别的详细信息）
               log.data && h('div', {
                 style: {

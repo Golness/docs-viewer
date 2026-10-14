@@ -80,6 +80,59 @@ export function createTreeRoutes(registry) {
       }
     },
 
+    // GET /index-status - 获取索引状态
+    {
+      kind: 'exact',
+      path: '/req-hub/index-status',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+
+        try {
+          const url = new URL(req.url, 'http://localhost');
+          const workspaceId = url.searchParams.get('workspaceId');
+
+          if (!workspaceId) {
+            json(res, { built: false });
+            return;
+          }
+
+          const workspaces = registry.list();
+          const workspace = workspaces.find(w => w.id === workspaceId);
+          if (!workspace) {
+            json(res, { built: false });
+            return;
+          }
+
+          const config = await loadConfig();
+          const docsRoot = resolve(workspace.path, config.docsDir || 'docs');
+          const index = await loadIndex(docsRoot);
+
+          if (!index) {
+            json(res, { built: false });
+            return;
+          }
+
+          json(res, {
+            built: true,
+            builtAt: index.builtAt,
+            stats: {
+              requirements: (index.requirements || []).length,
+              features: Object.keys(index.featureIndex || {}).length,
+              fields: Object.keys(index.fieldIndex || {}).length,
+              tags: Object.keys(index.tagIndex || {}).length,
+            },
+          });
+        } catch (e) {
+          log.index.error(`获取索引状态失败: ${e.message}`);
+          json(res, { built: false });
+        }
+      }
+    },
+
     // GET /index-data - 获取索引详情
     {
       kind: 'exact',

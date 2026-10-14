@@ -6,12 +6,10 @@ const { useState, useEffect, useCallback } = React;
 
 const { ROUTE } = require('../constants.js');
 const { Spinner } = require('./Spinner.js');
+const { getDocIcon } = require('../utils/getDocIcon.js');
+const { createIconComponents } = require('../icons.js');
 
-// ─── Helpers ─────────────────────────────────────────────────────
-function getDocIcon(type) {
-  const icons = { requirement: '📋', design: '📐', cr: '🔍', other: '📄' };
-  return icons[type] || '📄';
-}
+const { IconFolder, IconFolderOpen, IconFile, IconExpand, IconCollapse } = createIconComponents(h);
 
 // ─── DocTree (3-level tree) ──────────────────────────────────────
 // Covers: 2.1, 2.2, 2.3, 2.7, 2.8, 2.9, 2.10, 2.11, 2.14, 2.15
@@ -86,7 +84,7 @@ function DocTree({ workspaceId, docsDir, selectedReqId, onSelectReq, selectedFil
     }
   }, [tree, selectedReqId]);
 
-  if (error) return h('div', { className: 'dv-empty' }, h('span', { className: 'dv-error' }, error));
+  if (error) return h('div', { className: 'rh-empty' }, h('span', { className: 'rh-error' }, error));
   if (!tree) return h(Spinner, null);
 
   const toggleDev = (name) => {
@@ -96,25 +94,25 @@ function DocTree({ workspaceId, docsDir, selectedReqId, onSelectReq, selectedFil
     setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  return h('div', { className: 'dv-doc-tree' },
+  return h('div', { className: 'rh-doc-tree', role: 'tree', 'aria-label': '文档目录树' },
     tree.developers.length === 0
-      ? h('div', { className: 'dv-empty', style: { minHeight: 80 } },
-          h('span', { className: 'dv-empty-icon' }, '📁'),
+      ? h('div', { className: 'rh-empty', style: { minHeight: 80 } },
+          h('span', { className: 'rh-empty-icon' }, h(IconFolder, { size: 32 })),
           `No ${docsDir}/ directory or no requirements found.`)
       : tree.developers.map(dev => {
           const isDevExpanded = !!expandedDevs[dev.name];
-          return h('div', { key: dev.name, className: 'dv-dev-node' },
-            h('div', { className: 'dv-dev-header', onClick: () => toggleDev(dev.name) },
-              h('span', null, isDevExpanded ? '▼' : '▶'),
-              h('span', null, `📁 ${dev.name}`),
-              h('span', { className: 'dv-dev-count' }, `(${dev.requirementCount})`)
+          return h('div', { key: dev.name, className: 'rh-dev-node', role: 'treeitem', 'aria-expanded': isDevExpanded },
+            h('div', { className: 'rh-dev-header', onClick: () => toggleDev(dev.name) },
+              h(IconExpand, { size: 14, style: { transform: isDevExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' } }),
+              h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconFolder, { size: 14 }), ` ${dev.name}`),
+              h('span', { className: 'rh-dev-count' }, `(${dev.requirementCount})`)
             ),
             isDevExpanded && dev.requirements.map(req => {
               const isReqSelected = selectedReqId === req.id;
               const isReqExpanded = !!expandedReqs[req.id];
-              return h('div', { key: req.id, className: 'dv-req-node' },
+              return h('div', { key: req.id, className: 'rh-req-node', role: 'treeitem', 'aria-expanded': isReqExpanded, 'aria-selected': isReqSelected },
                 h('div', {
-                  className: `dv-req-header${isReqSelected ? ' selected' : ''}`,
+                  className: `rh-req-header${isReqSelected ? ' selected' : ''}`,
                   onClick: () => {
                     if (isReqSelected) {
                       onSelectReq(null);
@@ -124,8 +122,8 @@ function DocTree({ workspaceId, docsDir, selectedReqId, onSelectReq, selectedFil
                     toggleReq(req.id);
                   },
                 },
-                  h('span', null, `📂 ${req.date.slice(5)} ${req.title}`),
-                  req.fileCount > 0 && h('span', { className: 'dv-dev-count' }, `📄 ${req.fileCount}`)
+                  h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconFolderOpen, { size: 12 }), ` ${req.date.slice(5)} ${req.title}`),
+                  req.fileCount > 0 && h('span', { className: 'rh-dev-count', style: { display: 'inline-flex', alignItems: 'center', gap: 2 } }, h(IconFile, { size: 11 }), ` ${req.fileCount}`)
                 ),
                 isReqExpanded && h('div', null,
                   req.files.length > 0
@@ -133,15 +131,16 @@ function DocTree({ workspaceId, docsDir, selectedReqId, onSelectReq, selectedFil
                         const isActive = selectedFile?.name === file.name && selectedFile?.reqId === req.id;
                         return h('div', {
                           key: file.name,
-                          className: `dv-file-item${isActive ? ' active' : ''}`,
+                          className: `rh-file-item${isActive ? ' active' : ''}`,
                           onClick: (e) => {
                             e.stopPropagation();
                             onSelectFile({ ...file, reqId: req.id, reqTitle: req.title, reqDate: req.date, developer: req.developer });
                           },
-                        }, `${getDocIcon(file.type)} ${file.name}`);
+                        },
+                          h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, getDocIcon(file.type, 12), ` ${file.name}`));
                       })
-                    : h('div', { className: 'dv-empty-hint' }, '（无文档）'),
-                  req.hasMeta && h('div', { className: 'dv-meta-item' }, '.meta.json')
+                    : h('div', { className: 'rh-empty-hint' }, '（无文档）'),
+                  req.hasMeta && h('div', { className: 'rh-meta-item' }, '.meta.json')
                 )
               );
             })

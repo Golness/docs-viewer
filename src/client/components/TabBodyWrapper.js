@@ -64,14 +64,14 @@ function TabBodyWrapper() {
   }, []);
 
   if (!workspaces.length) {
-    return h('div', { className: 'dv-empty' }, 'No workspaces available');
+    return h('div', { className: 'rh-empty' }, 'No workspaces available');
   }
 
   if (!selectedWs) {
-    return h('div', { className: 'dv-empty' }, 'Select a workspace');
+    return h('div', { className: 'rh-empty' }, 'Select a workspace');
   }
 
-  return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100%' } },
+  return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100%' }, role: 'main' },
     h(DocsViewerBody, {
       workspace: selectedWs,
       docsDir,

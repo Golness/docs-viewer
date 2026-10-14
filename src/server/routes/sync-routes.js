@@ -701,14 +701,14 @@ export function createSyncRoutes(registry, llm, sessions, agents, ctx) {
               startedAt: Date.now(),
               status: 'running', // running | completed | failed
               steps: [
-                { phase: 'init', label: '🔧 初始化', status: 'pending', text: '', files: [], chunks: null },
-                { phase: 'session_extract', label: '📖 会话提取', status: 'pending', text: '', files: [], chunks: null },
-                { phase: 'code_analysis', label: '💻 代码差异分析', status: 'pending', text: '', files: [], chunks: null },
-                { phase: 'discussion_analysis', label: '💬 讨论差异分析', status: 'pending', text: '', files: [], chunks: null },
-                { phase: 'merge', label: '🔀 增量合并', status: 'pending', text: '', files: [], chunks: null },
-                { phase: 'save', label: '💾 保存文件', status: 'pending', text: '', files: [], chunks: null },
-                ...(runAnalysis ? [{ phase: 'analysis', label: '🧠 构建分析', status: 'pending', text: '', files: [], chunks: null }] : []),
-                ...(runIndex ? [{ phase: 'index', label: '📊 构建索引', status: 'pending', text: '', files: [], chunks: null }] : []),
+                { phase: 'init', label: '初始化', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'session_extract', label: '会话提取', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'code_analysis', label: '代码差异分析', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'discussion_analysis', label: '讨论差异分析', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'merge', label: '增量合并', status: 'pending', text: '', files: [], chunks: null },
+                { phase: 'save', label: '保存文件', status: 'pending', text: '', files: [], chunks: null },
+                ...(runAnalysis ? [{ phase: 'analysis', label: '构建分析', status: 'pending', text: '', files: [], chunks: null }] : []),
+                ...(runIndex ? [{ phase: 'index', label: '构建索引', status: 'pending', text: '', files: [], chunks: null }] : []),
               ],
               generatedFiles: [],
               runAnalysis,
@@ -1206,8 +1206,26 @@ export function createSyncRoutes(registry, llm, sessions, agents, ctx) {
           return;
         }
 
-        const history = await getSyncHistory(workspaceId, requirementId);
-        json(res, { history });
+        try {
+          // Find workspace and requirement directory to load state from disk
+          const workspace = registry.list().find(w => w.id === workspaceId);
+          if (workspace) {
+            const config = await loadConfig();
+            const docsRoot = resolve(workspace.path, config.docsDir || 'docs');
+            const reqDir = await findRequirementDir(docsRoot, requirementId);
+
+            if (reqDir) {
+              // Load state from disk before querying history
+              await loadState(workspaceId, requirementId, reqDir);
+            }
+          }
+
+          const history = await getSyncHistory(workspaceId, requirementId);
+          json(res, { history });
+        } catch (e) {
+          log.sync.error(`获取同步历史失败: ${e.message}`);
+          json(res, { history: [] });
+        }
       }
     },
 

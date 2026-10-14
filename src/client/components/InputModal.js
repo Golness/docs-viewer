@@ -15,9 +15,9 @@ function InputModal({ title, value, placeholder, onConfirm, onCancel }) {
     onConfirm(inputValue.trim());
   };
 
-  return h('div', { className: 'dv-modal-overlay', onClick: onCancel },
-    h('div', { className: 'dv-modal', onClick: e => e.stopPropagation() },
-      h('div', { className: 'dv-modal-title' }, title),
+  return h('div', { className: 'rh-modal-overlay', onClick: onCancel, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    h('div', { className: 'rh-modal', onClick: e => e.stopPropagation() },
+      h('div', { className: 'rh-modal-title' }, title),
       h('div', { style: { marginBottom: 12 } },
         h('input', {
           type: 'text',
@@ -28,6 +28,7 @@ function InputModal({ title, value, placeholder, onConfirm, onCancel }) {
             if (e.key === 'Escape') onCancel();
           },
           placeholder: placeholder || '请输入...',
+          'aria-label': title,
           autoFocus: true,
           style: {
             width: '100%',
@@ -42,9 +43,9 @@ function InputModal({ title, value, placeholder, onConfirm, onCancel }) {
           }
         })
       ),
-      h('div', { className: 'dv-modal-actions' },
-        h('button', { className: 'dv-btn', onClick: onCancel }, '取消'),
-        h('button', { className: 'dv-btn dv-btn-primary', onClick: handleConfirm }, '确定')
+      h('div', { className: 'rh-modal-actions' },
+        h('button', { className: 'rh-btn', onClick: onCancel }, '取消'),
+        h('button', { className: 'rh-btn rh-btn-primary', onClick: handleConfirm }, '确定')
       )
     )
   );

@@ -6,8 +6,11 @@ const { useState, useEffect, useRef } = React;
 
 const { ROUTE } = require('../constants.js');
 const { DocsViewerContext } = require('../context.js');
-const { parseBranchName } = require('../utils/parseBranchName.js');
+const { createIconComponents } = require('../icons.js');
 
+const { IconFolder, IconSync, IconFile, IconSearch, IconWrench, IconClipboard, IconScroll, IconSettings, IconClose } = createIconComponents(h);
+
+const { parseBranchName } = require('../utils/parseBranchName.js');
 const { TopBar } = require('./TopBar.js');
 const { CreateDirForm } = require('./CreateDirForm.js');
 const { FilePreview } = require('./FilePreview.js');
@@ -19,7 +22,7 @@ const { LogPanel } = require('./LogPanel.js');
 const { SettingsPanel } = require('./SettingsPanel.js');
 const { WorkspaceModal } = require('./WorkspaceModal.js');
 const { RequirementDirModal } = require('./RequirementDirModal.js');
-const { DocumentDropdown } = require('./DocumentDropdown.js');
+const { FileTreeSidebar } = require('./FileTreeSidebar.js');
 const { ConfirmModal } = require('./ConfirmModal.js');
 const { AnalyzePanel } = require('./AnalyzePanel.js');
 const { IndexPanel } = require('./IndexPanel.js');
@@ -33,7 +36,7 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
   const [indexStatus, setIndexStatus] = useState(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showReqDirModal, setShowReqDirModal] = useState(false);
-  const [showDocDropdown, setShowDocDropdown] = useState(false);
+  const [showFileTree, setShowFileTree] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null); // 'workbench' | 'templates' | null
   const threeZoneRef = useRef(null);
 
@@ -438,16 +441,16 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
 
   // Rail buttons config
   const topButtons = [
-    { id: 'create', icon: '📁', label: '新建' },
-    { id: 'sync', icon: '🔄', label: '同步' },
-    { id: 'view', icon: '📄', label: '查看', isDropdown: true },
-    { id: 'trace', icon: '🔍', label: '追溯' },
-    { id: 'workbench', icon: '🛠️', label: '工作台' },
-    { id: 'templates', icon: '📋', label: '模板' },
+    { id: 'create', icon: h(IconFolder, { size: 18 }), label: '新建' },
+    { id: 'sync', icon: h(IconSync, { size: 18 }), label: '同步' },
+    { id: 'view', icon: h(IconFile, { size: 18 }), label: '查看' },
+    { id: 'trace', icon: h(IconSearch, { size: 18 }), label: '追溯' },
+    { id: 'workbench', icon: h(IconWrench, { size: 18 }), label: '工作台' },
+    { id: 'templates', icon: h(IconClipboard, { size: 18 }), label: '模板' },
   ];
   const bottomButtons = [
-    { id: 'log', icon: '📜', label: '日志' },
-    { id: 'settings', icon: '⚙️', label: '设置' },
+    { id: 'log', icon: h(IconScroll, { size: 18 }), label: '日志' },
+    { id: 'settings', icon: h(IconSettings, { size: 18 }), label: '设置' },
   ];
 
   const renderPanel = () => {
@@ -526,7 +529,7 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
       : '';
 
   return h(DocsViewerContext.Provider, { value: contextValue },
-    h('div', { className: 'dv-root' },
+    h('div', { className: 'rh-root' },
       // ── Top bar ──
       h(TopBar, {
         docsDir,
@@ -538,17 +541,17 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
         onLocateSessionReq: handleLocateSessionReq,
       }),
 
-      h('div', { className: 'dv-three-zone', ref: threeZoneRef },
+      h('div', { className: 'rh-three-zone', ref: threeZoneRef },
         // ── Left: Rail toolbar ──
-        h('div', { className: 'dv-rail' },
+        h('div', { className: 'rh-rail' },
           topButtons.map(btn => {
             // Group button with sub-buttons (workbench / templates)
             if (btn.group) {
               const isGroupExpanded = expandedGroup === btn.group;
               const isSubActive = btn.subButtons.some(sb => activePanel === sb.id);
-              return h('div', { key: btn.id, className: 'dv-rail-group' },
+              return h('div', { key: btn.id, className: 'rh-rail-group' },
                 h('button', {
-                  className: `dv-rail-btn${isSubActive ? ' active' : ''}${isGroupExpanded ? ' expanded' : ''}`,
+                  className: `rh-rail-btn${isSubActive ? ' active' : ''}${isGroupExpanded ? ' expanded' : ''}`,
                   onClick: () => {
                     if (isGroupExpanded) {
                       setExpandedGroup(null);
@@ -558,18 +561,18 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
                   },
                 },
                 h('span', null, btn.icon),
-                h('span', { className: 'dv-rail-label' }, btn.label),
-                h('span', { className: 'dv-rail-arrow' }, isGroupExpanded ? '▾' : '▸')
+                h('span', { className: 'rh-rail-label' }, btn.label),
+                h('span', { className: 'rh-rail-arrow' }, isGroupExpanded ? '▾' : '▸')
                 ),
-                isGroupExpanded && h('div', { className: 'dv-rail-sub' },
+                isGroupExpanded && h('div', { className: 'rh-rail-sub' },
                   btn.subButtons.map(sb =>
                     h('button', {
                       key: sb.id,
-                      className: `dv-rail-sub-btn${activePanel === sb.id ? ' active' : ''}`,
+                      className: `rh-rail-sub-btn${activePanel === sb.id ? ' active' : ''}`,
                       onClick: () => setActivePanel(activePanel === sb.id ? null : sb.id),
                     },
                     h('span', null, sb.icon),
-                    h('span', { className: 'dv-rail-label' }, sb.label)
+                    h('span', { className: 'rh-rail-label' }, sb.label)
                     )
                   )
                 )
@@ -578,52 +581,72 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
             // Regular button
             return h('button', {
               key: btn.id,
-              className: `dv-rail-btn${activePanel === btn.id ? ' active' : ''}`,
+              className: `rh-rail-btn${btn.id === 'view' && showFileTree ? ' active' : ''}${btn.id !== 'view' && activePanel === btn.id ? ' active' : ''}`,
               onClick: () => {
-                if (btn.isDropdown) {
-                  setShowDocDropdown(true);
+                if (btn.id === 'view') {
+                  // Toggle file tree sidebar
+                  if (showFileTree) {
+                    setShowFileTree(false);
+                  } else {
+                    setShowFileTree(true);
+                    setActivePanel(null);
+                  }
                 } else {
                   setExpandedGroup(null);
-                  setActivePanel(activePanel === btn.id ? null : btn.id);
+                  // Close file tree, open this panel (always, no toggle)
+                  if (showFileTree) setShowFileTree(false);
+                  setActivePanel(btn.id);
                 }
               },
             },
               h('span', null, btn.icon),
-              h('span', { className: 'dv-rail-label' }, btn.label)
+              h('span', { className: 'rh-rail-label' }, btn.label)
             );
           }),
-          h('div', { className: 'dv-rail-bottom' },
+          h('div', { className: 'rh-rail-bottom' },
             bottomButtons.map(btn =>
               h('button', {
                 key: btn.id,
-                className: `dv-rail-btn${activePanel === btn.id ? ' active' : ''}`,
+                className: `rh-rail-btn${activePanel === btn.id ? ' active' : ''}`,
                 onClick: () => {
                   setExpandedGroup(null);
-                  setActivePanel(activePanel === btn.id ? null : btn.id);
+                  // Close file tree, open this panel (always, no toggle)
+                  if (showFileTree) setShowFileTree(false);
+                  setActivePanel(btn.id);
                 },
               },
                 h('span', null, btn.icon),
-                h('span', { className: 'dv-rail-label' }, btn.label)
+                h('span', { className: 'rh-rail-label' }, btn.label)
               )
             )
           )
         ),
 
+        // ── File Tree Sidebar (only when view is active) ──
+        showFileTree && h(FileTreeSidebar, {
+          workspaceId: workspace.id,
+          selectedReq,
+          onSelectFile: (file) => {
+            setSelectedFile(file);
+            setActivePanel(null);
+          },
+        }),
+
         // ── Right: Trace / Operations / File Preview ──
         h('div', {
-          className: 'dv-right-panel',
+          className: 'rh-right-panel',
           style: { flex: 1 }
         },
-          h('div', { className: 'dv-right-header' },
+          h('div', { className: 'rh-right-header' },
             h('span', null, rightHeaderTitle),
-            (activePanel || selectedFile) && h('span', { className: 'dv-right-close', onClick: handlePanelClose }, '✕ 关闭')
+            (activePanel || selectedFile) && h('span', { className: 'rh-right-close', onClick: handlePanelClose, role: 'button', 'aria-label': '关闭面板' }, h(IconClose, { size: 14 }), ' 关闭')
           ),
-          h('div', { className: 'dv-right-body' }, renderRightContent())
+          h('div', { className: 'rh-right-body' }, renderRightContent())
         )
       ),
 
       // ── Status bar (4.24) ──
-      h('div', { className: 'dv-statusbar' },
+      h('div', { className: 'rh-statusbar' },
         h('span', null, 'ReqHub v1.0'),
         h('span', null,
           `docsDir: ${docsDir} · `,
@@ -666,15 +689,7 @@ function DocsViewerBody({ workspace, docsDir, onConfigChange, workspaces, onSele
         onClose: () => setShowReqDirModal(false),
       }),
 
-      // ── Document dropdown ──
-      showDocDropdown && h(DocumentDropdown, {
-        workspaceId: workspace.id,
-        selectedReq,
-        onSelectFile: handleSelectFile,
-        onClose: () => setShowDocDropdown(false),
-      }),
-
-      // ── Create requirement confirm modal ──
+      // ─ Create requirement confirm modal ──
       showCreateConfirm && pendingCreateReq && h(ConfirmModal, {
         title: '创建需求目录',
         message: `需求目录不存在: ${pendingCreateReq.developer}/${pendingCreateReq.requirementId}\n\n是否创建该目录？`,

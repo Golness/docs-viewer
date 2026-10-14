@@ -1,35 +1,35 @@
 /* Animation keyframes and transitions */
 
 /* Spinner animation */
-@keyframes dv-spin {
+@keyframes rh-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-.dv-spinner {
+.rh-spinner {
   width: 18px;
   height: 18px;
   border: 2px solid var(--dsw-alias-border-l1);
   border-top-color: var(--dsw-alias-brand-primary);
   border-radius: 50%;
-  animation: dv-spin 0.6s linear infinite;
+  animation: rh-spin 0.6s linear infinite;
   margin-right: 8px;
 }
 
 /* ── Timeline ── */
-.dv-timeline {
+.rh-timeline {
   padding: 12px 14px;
 }
 
-.dv-tl-item {
+.rh-tl-item {
   display: flex;
   gap: 10px;
   padding: 6px 0;
   position: relative;
 }
 
-.dv-tl-item:not(:last-child):before {
+.rh-tl-item:not(:last-child):before {
   content: '';
   position: absolute;
   left: 11px;
@@ -39,7 +39,7 @@
   background: var(--dsw-alias-border-l1);
 }
 
-.dv-tl-dot {
+.rh-tl-dot {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -52,44 +52,44 @@
   border: 2px solid var(--dsw-alias-border-l1);
 }
 
-.dv-tl-dot.requirement {
+.rh-tl-dot.requirement {
   border-color: var(--dsw-alias-brand-primary);
   background: var(--dsw-alias-brand-primary-bg);
 }
 
-.dv-tl-dot.design {
+.rh-tl-dot.design {
   border-color: var(--dsw-alias-state-info-primary);
   background: var(--dsw-alias-state-info-bg);
 }
 
-.dv-tl-dot.cr {
+.rh-tl-dot.cr {
   border-color: var(--dsw-alias-state-warning-primary);
   background: var(--dsw-alias-state-warning-bg);
 }
 
-.dv-tl-dot.release {
+.rh-tl-dot.release {
   border-color: var(--dsw-alias-state-success-primary);
   background: var(--dsw-alias-state-success-bg);
 }
 
-.dv-tl-content {
+.rh-tl-content {
   flex: 1;
   min-width: 0;
 }
 
-.dv-tl-date {
-  font-size: 10px;
+.rh-tl-date {
+  font-size: 11px;
   color: var(--dsw-alias-label-secondary);
   font-weight: 600;
 }
 
-.dv-tl-title {
+.rh-tl-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--dsw-alias-label-primary);
 }
 
-.dv-tl-desc {
+.rh-tl-desc {
   font-size: 11px;
   color: var(--dsw-alias-label-secondary);
   margin-top: 2px;

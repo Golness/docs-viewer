@@ -8,6 +8,9 @@ const { ROUTE, MARKED_SCRIPT_ID, MERMAID_SCRIPT_ID, HIGHLIGHT_SCRIPT_ID } = requ
 const { useScript } = require('../hooks/useScript.js');
 const { getMermaidTheme } = require('../utils/getMermaidTheme.js');
 const { sanitizeHtml } = require('../utils/sanitizeHtml.js');
+const { createIconComponents } = require('../icons.js');
+
+const { IconLink } = createIconComponents(h);
 const { Spinner } = require('./Spinner.js');
 
 // ─── SkillPreview (Markdown + Mermaid) ───────────────
@@ -152,21 +155,21 @@ function SkillPreview({ skillName, workspaceId, onBack }) {
       background: 'var(--dsw-alias-bg-layer-1)'
     }},
       h('button', {
-        className: 'dv-btn dv-btn-secondary',
+        className: 'rh-btn rh-btn-secondary',
         onClick: onBack,
         style: { fontSize: 12, padding: '4px 10px' }
       }, '← 返回设置'),
       h('div', { style: { flex: 1 } },
-        h('div', { style: { fontWeight: 600, fontSize: 14 } }, `🔗 ${skillName}`),
+        h('div', { style: { fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 } }, h(IconLink, { size: 14 }), ` ${skillName}`),
         description && h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginTop: 2 } }, description)
       )
     ),
     // Content
-    h('div', { className: 'dv-preview-body', style: { flex: 1, overflow: 'auto' } },
-      error ? h('span', { className: 'dv-error' }, 'Error: ', error)
+    h('div', { className: 'rh-preview-body', style: { flex: 1, overflow: 'auto' } },
+      error ? h('span', { className: 'rh-error' }, 'Error: ', error)
         : text
           ? (markedLoaded && rendered)
-            ? h('div', { ref: markdownRef, className: 'dv-markdown', dangerouslySetInnerHTML: { __html: rendered } })
+            ? h('div', { ref: markdownRef, className: 'rh-markdown', dangerouslySetInnerHTML: { __html: rendered } })
             : h(Spinner)
           : h(Spinner)
     )

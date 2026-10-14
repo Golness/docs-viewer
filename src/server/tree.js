@@ -83,7 +83,7 @@ export async function buildTree(docsDir) {
       }
 
       const docFiles = files.filter(
-        f => f.endsWith('.md') || f.endsWith('.html') || f.endsWith('.htm') || 
+        f => f.endsWith('.md') || f.endsWith('.html') || f.endsWith('.htm') ||
              f.endsWith('.txt') || f.endsWith('.text') || f.endsWith('.markdown')
       );
       const hasMeta = files.includes('.meta.json');
@@ -99,14 +99,29 @@ export async function buildTree(docsDir) {
         } catch { /* ignore */ }
       }
 
+      // Get file modification times
+      const fileStats = [];
+      for (const f of docFiles) {
+        try {
+          const s = await stat(join(reqPath, f));
+          fileStats.push({ name: f, mtime: s.mtime.toISOString() });
+        } catch {
+          fileStats.push({ name: f, mtime: null });
+        }
+      }
+
       devNode.requirements.push({
         ...parsed,
         developer: entry.name,
         path: relative(docsDir, reqPath),
-        files: docFiles.map(f => ({
-          name: f,
-          type: inferDocType(f),
-        })),
+        files: docFiles.map(f => {
+          const statEntry = fileStats.find(s => s.name === f);
+          return {
+            name: f,
+            type: inferDocType(f),
+            mtime: statEntry?.mtime || null,
+          };
+        }),
         fileCount: docFiles.length,
         hasMeta,
         metaUpdatedAt,

@@ -3,6 +3,9 @@
 const React = require('react');
 const h = React.createElement;
 const { useState } = React;
+const { createIconComponents } = require('../icons.js');
+
+const { IconSync, IconChart, IconSearch } = createIconComponents(h);
 
 // ─── WorkbenchPanel ──────────────────────────────────────────────
 // Workbench with tabs: 分析 (Analyze), 索引 (Index), 搜索 (Search)
@@ -10,24 +13,24 @@ const { useState } = React;
 function WorkbenchPanel({ workspaceId, selectedReq, indexStatus, onRefreshIndex, onClose, AnalyzePanel, IndexPanel, SearchPanel }) {
   const [activeTab, setActiveTab] = useState('analyze');
 
-  return h('div', { className: 'dv-op-panel' },
+  return h('div', { className: 'rh-op-panel' },
     // Tab buttons
     h('div', { style: { display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid var(--dsw-alias-border-l1)', paddingBottom: 8 } },
       h('button', {
-        className: `dv-btn ${activeTab === 'analyze' ? 'dv-btn-primary' : ''}`,
+        className: `rh-btn ${activeTab === 'analyze' ? 'rh-btn-primary' : ''}`,
         onClick: () => setActiveTab('analyze'),
         style: { flex: 1 },
-      }, '🔄 分析'),
+      }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconSync, { size: 14 }), ' 分析')),
       h('button', {
-        className: `dv-btn ${activeTab === 'index' ? 'dv-btn-primary' : ''}`,
+        className: `rh-btn ${activeTab === 'index' ? 'rh-btn-primary' : ''}`,
         onClick: () => setActiveTab('index'),
         style: { flex: 1 },
-      }, '🔨 索引'),
+      }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconChart, { size: 14 }), ' 索引')),
       h('button', {
-        className: `dv-btn ${activeTab === 'search' ? 'dv-btn-primary' : ''}`,
+        className: `rh-btn ${activeTab === 'search' ? 'rh-btn-primary' : ''}`,
         onClick: () => setActiveTab('search'),
         style: { flex: 1 },
-      }, '🔎 搜索')
+      }, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, h(IconSearch, { size: 14 }), ' 搜索'))
     ),
 
     // Tab content

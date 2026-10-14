@@ -1,6 +1,6 @@
 {
   "docsDir": "docs",
-  "workspaceId": "f9b24289-f677-4005-9499-c884a6e57002",
+  "workspaceId": "2ef06d7a-458c-4a5c-b69f-111150d37887",
   "ai": {
     "prompts": {},
     "selectedModel": "glm-5",
@@ -9,5 +9,5 @@
     }
   },
   "developerName": "lihanping",
-  "requirementId": "2026-10-10-包材报价管理-增加导出功能"
+  "requirementId": "2026-10-09-hrm同步到greatday"
 }
